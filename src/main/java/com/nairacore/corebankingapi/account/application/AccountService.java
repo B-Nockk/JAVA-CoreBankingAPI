@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import com.nairacore.corebankingapi.account.application.port.in.CreateAccountUseCase;
+import com.nairacore.corebankingapi.account.application.port.out.CreateAccountPort;
 import com.nairacore.corebankingapi.account.application.port.out.LoadAccountPort;
 import com.nairacore.corebankingapi.account.application.port.out.UpdateAccountStatePort;
 import com.nairacore.corebankingapi.account.domain.Account;
@@ -15,28 +16,31 @@ public class AccountService implements CreateAccountUseCase {
 
     private final LoadAccountPort loadAccountPort;
     private final UpdateAccountStatePort updateAccountStatePort;
+    private final CreateAccountPort createAccountPort; // Inject the new port!
     private final BankingProperties bankingProperties;
 
     // Constructor Injection
     public AccountService(
             LoadAccountPort loadAccountPort,
             UpdateAccountStatePort updateAccountStatePort,
+            CreateAccountPort createAccountPort,
             BankingProperties bankingProperties) {
         this.loadAccountPort = loadAccountPort;
         this.updateAccountStatePort = updateAccountStatePort;
+        this.createAccountPort = createAccountPort;
         this.bankingProperties = bankingProperties;
     }
 
     @Override
     public Account createAccount(BigDecimal initialDeposit) {
-        // 1. Generate a dummy 10-digit account number for now
+        // 1. Generate account number
         String accountNumber = String.valueOf(Math.abs(UUID.randomUUID().getMostSignificantBits())).substring(0, 10);
 
-        // 2. Create the pure Domain object
-        Account newAccount = new Account(accountNumber, initialDeposit);
+        // 2. Use the strict Domain factory
+        Account newAccount = Account.open(accountNumber, initialDeposit);
 
-        // 3. Save it via the Out-Port (which triggers the JPA Adapter we built earlier)
-        updateAccountStatePort.save(newAccount);
+        // 3. Save via the strict insert port
+        createAccountPort.insert(newAccount);
 
         return newAccount;
     }

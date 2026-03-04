@@ -153,6 +153,10 @@ public final class Transfer {
         return completedAt;
     }
 
+    public int getVersion() {
+        return version;
+    }
+
     public enum TransferStatus {
         PENDING,
         COMPLETED,
