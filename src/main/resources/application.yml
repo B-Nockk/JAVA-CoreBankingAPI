@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: core-banking-api
+
+  # Default profile = dev (Postgres)
+  profiles:
+    active: dev
+
+---
+# DEV profile - real Postgres
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: jdbc:postgresql://localhost:5432/corebanking
+    username: postgres
+    password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false   # removes the warning you saw
+
+---
+# TEST profile - H2 (for tests only)
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
