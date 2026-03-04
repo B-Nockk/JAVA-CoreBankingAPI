@@ -5,7 +5,6 @@ spring:
   # Default profile = dev (Postgres)
   profiles:
     active: dev
-
 ---
 # DEV profile - real Postgres
 spring:
@@ -19,7 +18,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    open-in-view: false   # removes the warning you saw
+    open-in-view: false # removes the warning you saw
 
 ---
 # TEST profile - H2 (for tests only)
