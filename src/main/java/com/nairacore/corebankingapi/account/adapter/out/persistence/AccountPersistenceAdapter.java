@@ -1,14 +1,14 @@
 package com.nairacore.corebankingapi.account.adapter.out.persistence;
 
-import com.nairacore.corebankingapi.account.application.port.out.AccountPersistencePort;
+import com.nairacore.corebankingapi.account.application.port.out.LoadAccountPort;
+import com.nairacore.corebankingapi.account.application.port.out.UpdateAccountStatePort;
 import com.nairacore.corebankingapi.account.domain.Account;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
 @Repository // Tells Spring to manage this class
-public class AccountPersistenceAdapter implements AccountPersistencePort {
-
+public class AccountPersistenceAdapter implements LoadAccountPort, UpdateAccountStatePort {
     private final AccountRepository repository;
 
     // Constructor injection (Spring automatically passes the repository in)

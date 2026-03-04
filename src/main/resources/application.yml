@@ -5,6 +5,12 @@ spring:
   # Default profile = dev (Postgres)
   profiles:
     active: dev
+
+# Common / default values (overridable via env vars)
+app:
+  banking:
+    minimum-balance: ${APP_BANKING_MINIMUM_BALANCE:1000.00}
+
 ---
 # DEV profile - real Postgres
 spring:
@@ -18,7 +24,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    open-in-view: false # removes the warning you saw
+    open-in-view: false
 
 ---
 # TEST profile - H2 (for tests only)

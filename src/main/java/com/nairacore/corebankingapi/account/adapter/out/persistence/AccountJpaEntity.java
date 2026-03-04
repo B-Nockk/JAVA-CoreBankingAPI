@@ -2,7 +2,7 @@
 package com.nairacore.corebankingapi.account.adapter.out.persistence;
 
 import java.math.BigDecimal;
-
+import jakarta.persistence.Version;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -32,4 +32,7 @@ public class AccountJpaEntity {
 
     @Column(nullable = false)
     private String status; // We store the Enum as a String in the DB
+
+    @Version
+    private Integer version; // Hibernate handles this automatically!
 }

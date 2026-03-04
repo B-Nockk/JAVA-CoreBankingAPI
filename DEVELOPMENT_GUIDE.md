@@ -2,27 +2,38 @@
 
 ## Project Structure (follow exactly)
 
-```mermaid
-
+```tree
 src/main/java/com/nairacore/corebankingapi/
-├── CoreBankingApiApplication.java # entry point
-├── common/ # shared across all features
-│ ├── config/
-│ ├── exception/
-│ └── logging/
-├── account/ # Bounded Context 1 (easy to extract later)
-│ ├── controller/
-│ ├── service/
-│ ├── repository/
-│ ├── model/
-│ └── dto/
-├── transfer/ # Bounded Context 2 (will add next)
-│ ├── controller/
-│ ├── service/
-│ ├── repository/
-│ ├── model/
-│ └── dto/
-└── ... (future: payment, notification, etc.)
+├── CoreBankingApiApplication.java          # Spring Boot entry point
+├── common/                                 # cross-cutting concerns
+│   ├── config/
+│   ├── exception/
+│   └── logging/
+├── account/                                # Bounded Context 1 – Account Management
+│   ├── domain/                             # Pure business domain (entities, value objects, rules)
+│   ├── application/                        # Use cases / orchestration layer
+│   │   └── port/                           # Input & output ports (interfaces)
+│   │       ├── in/                         # Driving / input ports (use-case interfaces)
+│   │       └── out/                        # Driven / output ports (repository ports, etc.)
+│   ├── adapter/                            # Technology-specific adapters
+│   │   ├── in/
+│   │   │   └── web/                        # REST controllers (inbound)
+│   │   └── out/
+│   │       └── persistence/                # JPA / DB adapters (outbound)
+│   └── dto/                                # API request/response shapes
+└── transfer/                               # Bounded Context 2 – Transfers & Payments
+    ├── domain/
+    ├── application/
+    │   └── port/
+    │       ├── in/
+    │       └── out/
+    ├── adapter/
+    │   ├── in/
+    │   │   └── web/
+    │   └── out/
+    │       └── persistence/
+    └── dto/
+    # ... future: payment/, notification/, risk/, etc.
 ```
 
 ## User Flows
