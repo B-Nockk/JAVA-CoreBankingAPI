@@ -18,6 +18,7 @@ import com.coreledger.account.domain.events.MoneyDeposited;
 import com.coreledger.account.domain.exceptions.AccountNotFoundException;
 import com.coreledger.account.domain.model.Account;
 import com.coreledger.account.domain.model.Transaction;
+import com.coreledger.shared.domain.Money;
 
 /**
  * Application service for the account bounded context.
@@ -126,8 +127,11 @@ public class AccountService implements CreateAccountUseCase, GetAccountUseCase, 
         Account account = loadAccountPort.findByAccountNumber(command.accountNumber())
                 .orElseThrow(() -> new AccountNotFoundException(command.accountNumber()));
 
+        // Currency resolved here from the account — the web layer sends raw BigDecimal
+        Money amount = Money.of(command.amount(), account.getCurrency());
+
         Transaction tx = account.deposit(
-                command.amount(),
+                amount,
                 command.reference(),
                 command.initiatedBy());
 

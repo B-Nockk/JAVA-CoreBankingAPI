@@ -1,40 +1,125 @@
 spring:
   application:
-    name: core-banking-api
+    name: coreledger
 
-  # Default profile = dev (Postgres)
+  # Active profile — override via env var in CI/prod: SPRING_PROFILES_ACTIVE=prod
   profiles:
     active: dev
 
-# Common / default values (overridable via env vars)
+  # -----------------------------------------------------------------------
+  # JPA / Hibernate — base config, profiles override ddl-auto and dialect
+  # -----------------------------------------------------------------------
+  jpa:
+    open-in-view: false # never true — keeps DB sessions out of web layer
+    show-sql: false # set true temporarily to debug queries, never in prod
+    properties:
+      hibernate:
+        format_sql: true
+
+# -----------------------------------------------------------------------
+# Server
+# -----------------------------------------------------------------------
+server:
+  port: 8080
+  error:
+    include-stacktrace: never # never expose stack traces externally
+    include-message: never # Spring's default error messages can leak internals
+
+# -----------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------
+logging:
+  level:
+    com.coreledger: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: WARN
+
+# -----------------------------------------------------------------------
+# OpenAPI / Swagger UI
+# -----------------------------------------------------------------------
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /api-docs
+
+# -----------------------------------------------------------------------
+# Custom application properties
+# -----------------------------------------------------------------------
 app:
   banking:
     minimum-balance: ${APP_BANKING_MINIMUM_BALANCE:1000.00}
 
 ---
-# DEV profile - real Postgres
+# -----------------------------------------------------------------------
+# DEV profile — real Postgres (matches prod behaviour, catches real DB issues early)
+# Requires: docker-compose up (or local Postgres on 5432)
+# -----------------------------------------------------------------------
 spring:
   config:
     activate:
       on-profile: dev
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/corebanking
+    url: jdbc:postgresql://localhost:5432/coreledger
     username: postgres
     password: postgres
+
   jpa:
     hibernate:
-      ddl-auto: update
-    open-in-view: false
+      ddl-auto: update # auto-alters schema on startup — fine for dev, never prod
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
 ---
-# TEST profile - H2 (for tests only)
+# -----------------------------------------------------------------------
+# TEST profile — H2 in-memory (fast, no external dependencies for tests)
+# -----------------------------------------------------------------------
 spring:
   config:
     activate:
       on-profile: test
+
   datasource:
-    url: jdbc:h2:mem:testdb
+    url: jdbc:h2:mem:coreledger-test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: false
+
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create-drop # fresh schema per test run
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+---
+# -----------------------------------------------------------------------
+# PROD profile — all secrets via env vars, never hardcoded
+# -----------------------------------------------------------------------
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate # validate only — schema managed by migrations (Flyway/Liquibase)
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+logging:
+  level:
+    com.coreledger: INFO # less noise in prod
+    org.hibernate.SQL: WARN
