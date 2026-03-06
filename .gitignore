@@ -1,3 +1,7 @@
+# User
+*.sample*
+sample/
+
 # Compiled class file
 *.class
 

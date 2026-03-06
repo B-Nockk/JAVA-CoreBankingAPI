@@ -8,7 +8,7 @@ Rule: domain has zero dependency on Spring, JPA, or any framework. Infrastructur
 
 ## Module Layout
 
-```
+```tree
 coreledger/
 ├── pom.xml                  # Parent pom — declares all modules, manages versions
 ├── shared-kernel/           # Pure Java: Money, Currency, AuditMetadata, DomainEvent
@@ -19,7 +19,7 @@ coreledger/
 
 ## Package Structure (per module)
 
-```
+```tree
 com.coreledger.<module>/
 ├── domain/
 │   ├── model/               # Aggregate roots, entities, value objects
@@ -48,7 +48,7 @@ com.coreledger.<module>/
 
 ## Implementation Order (per bounded context)
 
-```
+```tree
 1. shared-kernel values first     # Money, Currency — everything depends on these
 2. domain/model/                  # Aggregate root + child entities + value objects
 3. domain/events/                 # What happened (MoneyDeposited, etc.)
