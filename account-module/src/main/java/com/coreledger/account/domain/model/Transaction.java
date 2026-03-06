@@ -28,7 +28,7 @@ import com.coreledger.shared.domain.Money;
  */
 public final class Transaction {
 
-    private final String transactionId;
+    private String transactionId;
     private final AccountId accountId;
     private final TransactionType type;
     private final Money amount;
@@ -80,6 +80,18 @@ public final class Transaction {
                 amount, balanceAfter, transferId, AuditMetadata.now(initiatedBy));
     }
 
+    public static Transaction reconstitute(
+            String transactionId,
+            AccountId accountId,
+            TransactionType type,
+            Money amount,
+            Money balanceAfter,
+            String reference,
+            AuditMetadata audit) {
+        Transaction tx = new Transaction(accountId, type, amount, balanceAfter, reference, audit);
+        tx.transactionId = transactionId;
+        return tx;
+    }
     // -------------------------------------------------------------------------
     // Accessors
     // -------------------------------------------------------------------------
