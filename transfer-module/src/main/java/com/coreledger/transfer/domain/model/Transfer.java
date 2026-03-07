@@ -1,5 +1,5 @@
 // transfer-module/src/main/java/com/coreledger/transfer/domain/Transfer.java
-package com.coreledger.transfer.domain;
+package com.coreledger.transfer.domain.model;
 
 import java.util.Objects;
 

@@ -1,5 +1,5 @@
 // transfer-module/src/main/java/com/coreledger/transfer/domain/TransferId.java
-package com.coreledger.transfer.domain;
+package com.coreledger.transfer.domain.model;
 
 import java.util.Objects;
 import java.util.UUID;

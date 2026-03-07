@@ -1,5 +1,5 @@
 // transfer-module/src/main/java/com/coreledger/transfer/domain/TransferStatus.java
-package com.coreledger.transfer.domain;
+package com.coreledger.transfer.domain.model;
 
 /**
  * Lifecycle states of a Transfer.
