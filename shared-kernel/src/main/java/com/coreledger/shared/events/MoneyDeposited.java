@@ -1,24 +1,27 @@
-// account-module/src/main/java/com/coreledger/account/domain/events/MoneyWithdrawn.java
-package com.coreledger.account.domain.events;
+// shared-kernel/src/main/java/com/coreledger/shared/events/MoneyDeposited.java
+package com.coreledger.shared.events;
 
 import com.coreledger.shared.domain.DomainEvent;
 import com.coreledger.shared.domain.Money;
 
 /**
- * Raised when a withdrawal is successfully recorded on an account.
+ * Raised when a deposit is successfully recorded on an account.
+ *
+ * Carries the amount and the resulting balance so listeners
+ * can react without needing to query the account themselves.
  *
  * Potential listeners:
- * - notification-module: alert customer of debit
- * - risk-module: flag unusual withdrawal patterns
+ * - notification-module: alert customer of credit
+ * - risk-module: flag unusually large deposits
  */
-public final class MoneyWithdrawn extends DomainEvent {
+public final class MoneyDeposited extends DomainEvent {
 
     private final String accountNumber;
     private final Money amount;
     private final Money balanceAfter;
     private final String reference;
 
-    public MoneyWithdrawn(String accountId, String accountNumber,
+    public MoneyDeposited(String accountId, String accountNumber,
             Money amount, Money balanceAfter, String reference) {
         super(accountId);
         this.accountNumber = accountNumber;

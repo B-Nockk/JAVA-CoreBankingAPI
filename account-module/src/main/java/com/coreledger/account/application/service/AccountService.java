@@ -14,11 +14,11 @@ import com.coreledger.account.application.port.out.AccountNumberGeneratorPort;
 import com.coreledger.account.application.port.out.LoadAccountPort;
 import com.coreledger.account.application.port.out.SaveAccountPort;
 import com.coreledger.account.domain.events.AccountCreated;
-import com.coreledger.account.domain.events.MoneyDeposited;
 import com.coreledger.account.domain.exceptions.AccountNotFoundException;
 import com.coreledger.account.domain.model.Account;
 import com.coreledger.account.domain.model.Transaction;
 import com.coreledger.shared.domain.Money;
+import com.coreledger.shared.events.MoneyDeposited;
 
 /**
  * Application service for the account bounded context.
