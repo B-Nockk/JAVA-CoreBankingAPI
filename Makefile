@@ -17,7 +17,7 @@ dev-up:
 
 # Run the Spring Boot app from the app module (not root — root has no main class)
 app-run:
-	./mvnw spring-boot:run -pl app -am
+	./mvnw install -DskipTests -am -pl app && ./mvnw spring-boot:run -pl app
 
 # Build all modules from root
 build:
