@@ -1,13 +1,20 @@
-//
+// transfer-module/src/main/java/com/coreledger/transfer/application/service/TransferService.java
 package com.coreledger.transfer.application.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.coreledger.shared.domain.Money;
+import com.coreledger.shared.events.MoneyDeposited;
+import com.coreledger.shared.events.MoneyWithdrawn;
 import com.coreledger.shared.events.TransferCompleted;
 import com.coreledger.shared.events.TransferFailed;
 import com.coreledger.shared.events.TransferInitiated;
 import com.coreledger.shared.events.TransferReversed;
-import com.coreledger.shared.events.MoneyWithdrawn;
-import com.coreledger.shared.events.MoneyDeposited;
 import com.coreledger.transfer.application.port.in.GetTransferUseCase;
 import com.coreledger.transfer.application.port.in.InitiateTransferUseCase;
 import com.coreledger.transfer.application.port.out.AccountVerificationPort;
@@ -17,12 +24,6 @@ import com.coreledger.transfer.domain.exceptions.InvalidTransferException;
 import com.coreledger.transfer.domain.exceptions.TransferNotFoundException;
 import com.coreledger.transfer.domain.model.Transfer;
 import com.coreledger.transfer.domain.model.TransferId;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.event.EventListener;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Application service for the transfer bounded context.
@@ -80,7 +81,7 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
     // -------------------------------------------------------------------------
 
     @Override
-    public TransferResult execute(Command command) {
+    public InitiateTransferUseCase.TransferResult execute(Command command) {
         // Verify both accounts exist and are active
         AccountVerificationPort.AccountView source = accountVerificationPort
                 .findActiveAccount(command.sourceAccountNumber());
@@ -110,7 +111,7 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
                 saved.getDestinationAccountNumber(),
                 saved.getAmount()));
 
-        return toResult(saved);
+        return toInitiateResult(saved);
     }
 
     // -------------------------------------------------------------------------
@@ -119,7 +120,7 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
 
     @Override
     @Transactional(readOnly = true)
-    public TransferResult getById(String transferId) {
+    public GetTransferUseCase.TransferResult getById(String transferId) {
         return loadTransferPort.findById(TransferId.of(transferId))
                 .map(this::toGetResult)
                 .orElseThrow(() -> new TransferNotFoundException(transferId));
@@ -219,8 +220,8 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
     // Mapping
     // -------------------------------------------------------------------------
 
-    private TransferResult toResult(Transfer transfer) {
-        return new TransferResult(
+    private InitiateTransferUseCase.TransferResult toInitiateResult(Transfer transfer) {
+        return new InitiateTransferUseCase.TransferResult(
                 transfer.getId().toString(),
                 transfer.getSourceAccountNumber(),
                 transfer.getDestinationAccountNumber(),
