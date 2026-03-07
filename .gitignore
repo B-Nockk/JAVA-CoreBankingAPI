@@ -1,6 +1,7 @@
 # User
 *.sample*
 sample/
+.env
 
 # Compiled class file
 *.class

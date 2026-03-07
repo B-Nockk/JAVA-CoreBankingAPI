@@ -61,9 +61,9 @@ spring:
       on-profile: dev
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/coreledger
-    username: postgres
-    password: postgres
+    url: jdbc:postgresql://localhost:${DB_PORT:5432}/${DB_NAME:coreledger}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
 
   jpa:
     hibernate:
