@@ -3,6 +3,8 @@ package com.coreledger.common.exception;
 import com.coreledger.account.domain.exceptions.AccountNotFoundException;
 import com.coreledger.account.domain.exceptions.InsufficientFundsException;
 import com.coreledger.account.domain.exceptions.InvalidAccountOperationException;
+import com.coreledger.transfer.domain.exceptions.InvalidTransferException;
+import com.coreledger.transfer.domain.exceptions.TransferNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -35,6 +37,20 @@ public class GlobalExceptionHandler {
         log.warn("Account not found: {}", ex.getIdentifier());
         return ResponseEntity.status(404)
                 .body(ErrorResponse.of(404, ex.getMessage()));
+    }
+
+    @ExceptionHandler(TransferNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleTransferNotFound(TransferNotFoundException ex) {
+        log.warn("Transfer not found: {}", ex.getIdentifier());
+        return ResponseEntity.status(404)
+                .body(ErrorResponse.of(404, ex.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidTransferException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidTransfer(InvalidTransferException ex) {
+        log.warn("Invalid transfer: {}", ex.getMessage());
+        return ResponseEntity.status(422)
+                .body(ErrorResponse.of(422, ex.getMessage()));
     }
 
     @ExceptionHandler(InsufficientFundsException.class)
