@@ -124,6 +124,10 @@ public final class Transaction {
         return audit;
     }
 
+    public String getInitiatedBy() {
+        return audit.getCreatedBy();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o)
