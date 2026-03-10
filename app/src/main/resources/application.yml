@@ -2,6 +2,21 @@ spring:
   application:
     name: coreledger
 
+  kafka:
+    bootstrap-servers: localhost:${KAFKA_PORT:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: true
+    consumer:
+      group-id: coreledger
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.coreledger.*"
+
   # Active profile — override via env var in CI/prod: SPRING_PROFILES_ACTIVE=prod
   profiles:
     active: dev
@@ -15,6 +30,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+kafka:
+  topics:
+    account-events: coreledger.account.events
+    transfer-events: coreledger.transfer.events
 
 # -----------------------------------------------------------------------
 # Server
@@ -100,6 +120,12 @@ spring:
 
   flyway:
     enabled: false
+
+  kafka:
+    bootstrap-servers: localhost:9092 # won't be used — auto-config disabled below
+  autoconfigure:
+    exclude: >
+      org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
 
 ---
 # -----------------------------------------------------------------------

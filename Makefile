@@ -8,11 +8,16 @@ endif
 
 # Start DB, wait for it to be ready, then start app
 dev-up:
-	docker compose up -d postgres
+	docker compose up -d postgres zookeeper kafka
 	@echo "Waiting for Postgres to be healthy..."
 	@until [ "$$(docker inspect -f '{{.State.Health.Status}}' $${CONTAINER_NAME})" = "healthy" ]; do \
 		sleep 1; \
 	done
+	@echo "Waiting for Kafka to be healthy..."
+	@until [ "$$(docker inspect -f '{{.State.Health.Status}}' $${KAFKA_CONTAINER_NAME})" = "healthy" ]; do \
+		sleep 3; \
+	done
+	@echo "All services healthy"
 	$(MAKE) app-run
 
 # Run the Spring Boot app from the app module (not root — root has no main class)
@@ -35,7 +40,7 @@ dev-down:
 
 # Follow DB logs
 dev-logs:
-	docker compose logs -f postgres
+	docker compose logs -f postgres kafka
 
 # Quick restart of DB
 dev-restart:
