@@ -67,7 +67,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update # auto-alters schema on startup — fine for dev, never prod
+      ddl-auto: validate # auto-alters schema on startup — fine for dev, never prod
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -98,6 +98,9 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
 
+  flyway:
+    enabled: false
+
 ---
 # -----------------------------------------------------------------------
 # PROD profile — all secrets via env vars, never hardcoded
@@ -118,6 +121,9 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
 
 logging:
   level:
