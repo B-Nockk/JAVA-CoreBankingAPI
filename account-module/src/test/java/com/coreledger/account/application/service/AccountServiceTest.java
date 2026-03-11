@@ -22,7 +22,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import com.coreledger.account.application.port.in.CreateAccountUseCase;
 import com.coreledger.account.application.port.in.DepositUseCase;
@@ -32,7 +31,9 @@ import com.coreledger.account.application.port.out.LoadAccountPort;
 import com.coreledger.account.application.port.out.SaveAccountPort;
 import com.coreledger.account.domain.exceptions.AccountNotFoundException;
 import com.coreledger.account.domain.model.Account;
+import com.coreledger.shared.DomainEventPublisher;
 import com.coreledger.shared.domain.Currency;
+import com.coreledger.shared.domain.DomainEvent;
 import com.coreledger.shared.domain.Money;
 
 /**
@@ -60,7 +61,7 @@ class AccountServiceTest {
     @Mock
     private AccountNumberGeneratorPort accountNumberGenerator;
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private DomainEventPublisher eventPublisher;
 
     @InjectMocks
     private AccountService accountService;
@@ -124,7 +125,7 @@ class AccountServiceTest {
             // verify event was published — we don't care about the specific
             // event content here, just that publishEvent was called once
             // verify(eventPublisher, times(1)).publishEvent(any());
-            verify(eventPublisher, times(1)).publishEvent(any(Object.class));
+            verify(eventPublisher, times(1)).publishAccountEvent(any(DomainEvent.class));
 
         }
 
@@ -282,7 +283,7 @@ class AccountServiceTest {
                     "1234567890", new BigDecimal("500.00"), "REF001", "test-user"));
 
             // verify(eventPublisher, times(1)).publishEvent(any());
-            verify(eventPublisher, times(1)).publishEvent(any(Object.class));
+            verify(eventPublisher, times(1)).publishAccountEvent(any(DomainEvent.class));
 
         }
 

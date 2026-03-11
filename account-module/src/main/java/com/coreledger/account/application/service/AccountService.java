@@ -3,7 +3,6 @@ package com.coreledger.account.application.service;
 
 import java.util.List;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +16,7 @@ import com.coreledger.account.domain.events.AccountCreated;
 import com.coreledger.account.domain.exceptions.AccountNotFoundException;
 import com.coreledger.account.domain.model.Account;
 import com.coreledger.account.domain.model.Transaction;
+import com.coreledger.shared.DomainEventPublisher;
 import com.coreledger.shared.domain.Money;
 import com.coreledger.shared.events.MoneyDeposited;
 
@@ -53,13 +53,13 @@ public class AccountService implements CreateAccountUseCase, GetAccountUseCase, 
     private final LoadAccountPort loadAccountPort;
     private final SaveAccountPort saveAccountPort;
     private final AccountNumberGeneratorPort accountNumberGenerator;
-    private final ApplicationEventPublisher eventPublisher;
+    private final DomainEventPublisher eventPublisher;
 
     public AccountService(
             LoadAccountPort loadAccountPort,
             SaveAccountPort saveAccountPort,
             AccountNumberGeneratorPort accountNumberGenerator,
-            ApplicationEventPublisher eventPublisher) {
+            DomainEventPublisher eventPublisher) {
         this.loadAccountPort = loadAccountPort;
         this.saveAccountPort = saveAccountPort;
         this.accountNumberGenerator = accountNumberGenerator;
@@ -82,7 +82,7 @@ public class AccountService implements CreateAccountUseCase, GetAccountUseCase, 
 
         Account saved = saveAccountPort.save(account);
 
-        eventPublisher.publishEvent(new AccountCreated(
+        eventPublisher.publishAccountEvent(new AccountCreated(
                 saved.getId().toString(),
                 saved.getAccountNumber(),
                 saved.getOwnerName(),
@@ -137,7 +137,7 @@ public class AccountService implements CreateAccountUseCase, GetAccountUseCase, 
 
         saveAccountPort.save(account);
 
-        eventPublisher.publishEvent(new MoneyDeposited(
+        eventPublisher.publishAccountEvent(new MoneyDeposited(
                 account.getId().toString(),
                 account.getAccountNumber(),
                 tx.getAmount(),

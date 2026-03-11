@@ -48,7 +48,7 @@ class AccountPersistenceAdapterTest {
 
     // We also autowire the repository directly so we can set up test data
     // without going through the adapter (keeps tests independent)
-    @Autowired
+    // @Autowired
     // private AccountJpaRepository accountJpaRepository;
 
     // -------------------------------------------------------------------------

@@ -3,11 +3,13 @@ package com.coreledger.transfer.application.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.coreledger.shared.DomainEventPublisher;
 import com.coreledger.shared.domain.Money;
 import com.coreledger.shared.events.MoneyDeposited;
 import com.coreledger.shared.events.MoneyWithdrawn;
@@ -63,13 +65,13 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
     private final LoadTransferPort loadTransferPort;
     private final SaveTransferPort saveTransferPort;
     private final AccountVerificationPort accountVerificationPort;
-    private final ApplicationEventPublisher eventPublisher;
+    private final DomainEventPublisher eventPublisher;
 
     public TransferService(
             LoadTransferPort loadTransferPort,
             SaveTransferPort saveTransferPort,
             AccountVerificationPort accountVerificationPort,
-            ApplicationEventPublisher eventPublisher) {
+            DomainEventPublisher eventPublisher) {
         this.loadTransferPort = loadTransferPort;
         this.saveTransferPort = saveTransferPort;
         this.accountVerificationPort = accountVerificationPort;
@@ -105,7 +107,7 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
 
         Transfer saved = saveTransferPort.save(transfer);
 
-        eventPublisher.publishEvent(new TransferInitiated(
+        eventPublisher.publishTransferEvent(new TransferInitiated(
                 saved.getId().toString(),
                 saved.getSourceAccountNumber(),
                 saved.getDestinationAccountNumber(),
@@ -135,8 +137,9 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
      * Advance transfer to DEBITED state.
      * Account-module's TransferInitiatedHandler will now credit destination.
      */
-    @EventListener
-    public void onMoneyWithdrawn(MoneyWithdrawn event) {
+    @KafkaListener(topics = "${kafka.topics.account-events}", groupId = "coreledger-transfer", containerFactory = "kafkaListenerContainerFactory")
+    @Transactional
+    public void onMoneyWithdrawn(@Payload MoneyWithdrawn event) {
         // Only handle withdrawals that are part of a transfer
         // (reference will be the transferId for transfer-related withdrawals)
         String transferId = event.getReference();
@@ -155,8 +158,9 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
      * Account-module has successfully credited the destination.
      * Advance transfer to COMPLETED.
      */
-    @EventListener
-    public void onMoneyDeposited(MoneyDeposited event) {
+    @KafkaListener(topics = "${kafka.topics.account-events}", groupId = "coreledger-transfer", containerFactory = "kafkaListenerContainerFactory")
+    @Transactional
+    public void onMoneyDeposited(@Payload MoneyDeposited event) {
         String transferId = event.getReference();
         loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
             if (!transfer.isDebited())
@@ -166,7 +170,7 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
                 transfer.markCompleted();
                 saveTransferPort.save(transfer);
 
-                eventPublisher.publishEvent(new TransferCompleted(
+                eventPublisher.publishTransferEvent(new TransferCompleted(
                         transfer.getId().toString(),
                         transfer.getSourceAccountNumber(),
                         transfer.getDestinationAccountNumber(),
@@ -206,7 +210,7 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
 
         if (wasDebited) {
             // Money left the source — trigger reversal
-            eventPublisher.publishEvent(new TransferFailed(
+            eventPublisher.publishTransferEvent(new TransferFailed(
                     transfer.getId().toString(),
                     transfer.getSourceAccountNumber(),
                     transfer.getAmount(),

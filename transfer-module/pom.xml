@@ -68,5 +68,16 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- Spring Messaging (for @Payload, Message, etc.) -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-messaging</artifactId>
+        </dependency>
     </dependencies>
 </project>

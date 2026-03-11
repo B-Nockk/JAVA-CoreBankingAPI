@@ -1,10 +1,10 @@
-// account-module/src/main/java/com/coreledger/account/application/service/TransferEventHandler.java
+// account-module/src/main/java/com/coreledger/account/application/service/TransferEventHandler-kafka.java
 package com.coreledger.account.application.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.event.EventListener;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,108 +13,88 @@ import com.coreledger.account.application.port.out.SaveAccountPort;
 import com.coreledger.account.domain.exceptions.AccountNotFoundException;
 import com.coreledger.account.domain.model.Account;
 import com.coreledger.account.domain.model.Transaction;
+import com.coreledger.shared.DomainEventPublisher;
 import com.coreledger.shared.events.MoneyDeposited;
 import com.coreledger.shared.events.MoneyWithdrawn;
 import com.coreledger.shared.events.TransferFailed;
 import com.coreledger.shared.events.TransferInitiated;
+import com.coreledger.shared.events.TransferReversed;
 
 /**
- * Event handler in account-module that reacts to transfer lifecycle events.
+ * Consumes transfer-domain events from Kafka and executes account-side
+ * operations.
  *
- * This is the account-module's side of the choreography.
- * It listens for events published by transfer-module and responds by
- * performing account operations, then publishing its own events back.
+ * Listens on: coreledger.transfer.events
+ * Publishes to: coreledger.account.events (via EventPublisher)
  *
- * Flow this handler participates in:
+ * Each @KafkaListener method is its own transaction — if it fails, only that
+ * message's processing rolls back. Kafka will redeliver it (at-least-once).
  *
- * onTransferInitiated()
- * → debits source account
- * → publishes MoneyWithdrawn (transfer-module reacts, marks DEBITED,
- * and account-module's own handler then credits destination)
- *
- * onTransferInitiated() continued — after debit succeeds
- * → credits destination account
- * → publishes MoneyDeposited (transfer-module reacts, marks COMPLETED)
- *
- * onTransferFailed()
- * → re-credits source account (reversal)
- * → publishes TransferReversed (transfer-module reacts, marks REVERSED)
- *
- * Why debit and credit in the same handler?
- * In the in-process synchronous model, publishing MoneyWithdrawn and
- * immediately having TransferService.onMoneyWithdrawn() react would
- * work but creates unnecessary event round-trips for the credit step.
- * Since we're synchronous, we complete both legs here and publish the
- * final MoneyDeposited for transfer-module to close out the transfer.
- * When we move to Kafka, this handler splits into two consumers naturally.
+ * groupId = "coreledger-account" — separate from transfer-module's consumer
+ * group
+ * so both modules can independently consume from the same topic if needed.
  */
 @Service
-@Transactional
 public class TransferEventHandler {
 
     private static final Logger log = LoggerFactory.getLogger(TransferEventHandler.class);
 
     private final LoadAccountPort loadAccountPort;
     private final SaveAccountPort saveAccountPort;
-    private final ApplicationEventPublisher eventPublisher;
+    private final DomainEventPublisher eventPublisher;
 
-    public TransferEventHandler(
-            LoadAccountPort loadAccountPort,
+    public TransferEventHandler(LoadAccountPort loadAccountPort,
             SaveAccountPort saveAccountPort,
-            ApplicationEventPublisher eventPublisher) {
+            DomainEventPublisher eventPublisher) {
         this.loadAccountPort = loadAccountPort;
         this.saveAccountPort = saveAccountPort;
         this.eventPublisher = eventPublisher;
     }
 
-    @EventListener
-    public void onTransferInitiated(TransferInitiated event) {
+    @KafkaListener(topics = "${kafka.topics.transfer-events}", groupId = "coreledger-account", containerFactory = "kafkaListenerContainerFactory")
+    @Transactional
+    public void onTransferInitiated(@Payload TransferInitiated event) {
         String transferId = event.getAggregateId();
         log.info("Handling TransferInitiated for transfer {}", transferId);
 
-        // Step 1: Debit source
+        // Step 1: Debit source account
         Account source = loadAccountPort.findByAccountNumber(event.getSourceAccountNumber())
                 .orElseThrow(() -> new AccountNotFoundException(event.getSourceAccountNumber()));
 
         Transaction debitTx = source.debitTransfer(
-                event.getAmount(),
-                transferId,
-                "TRANSFER_SYSTEM");
+                event.getAmount(), transferId, "TRANSFER_SYSTEM");
         saveAccountPort.save(source);
 
-        eventPublisher.publishEvent(new MoneyWithdrawn(
+        eventPublisher.publishAccountEvent(new MoneyWithdrawn(
                 source.getId().toString(),
                 source.getAccountNumber(),
                 debitTx.getAmount(),
                 debitTx.getBalanceAfter(),
-                transferId // reference = transferId so transfer-module can correlate
-        ));
+                transferId));
 
-        // Step 2: Credit destination
+        // Step 2: Credit destination account
         Account destination = loadAccountPort
                 .findByAccountNumber(event.getDestinationAccountNumber())
                 .orElseThrow(() -> new AccountNotFoundException(
                         event.getDestinationAccountNumber()));
 
         Transaction creditTx = destination.creditTransfer(
-                event.getAmount(),
-                transferId,
-                "TRANSFER_SYSTEM");
+                event.getAmount(), transferId, "TRANSFER_SYSTEM");
         saveAccountPort.save(destination);
 
-        eventPublisher.publishEvent(new MoneyDeposited(
+        eventPublisher.publishAccountEvent(new MoneyDeposited(
                 destination.getId().toString(),
                 destination.getAccountNumber(),
                 creditTx.getAmount(),
                 creditTx.getBalanceAfter(),
-                transferId // reference = transferId for correlation
-        ));
+                transferId));
 
-        log.info("Transfer {} — debit and credit completed", transferId);
+        log.info("Transfer {} — debit and credit applied", transferId);
     }
 
-    @EventListener
-    public void onTransferFailed(TransferFailed event) {
+    @KafkaListener(topics = "${kafka.topics.transfer-events}", groupId = "coreledger-account", containerFactory = "kafkaListenerContainerFactory")
+    @Transactional
+    public void onTransferFailed(@Payload TransferFailed event) {
         String transferId = event.getAggregateId();
         log.warn("Handling TransferFailed reversal for transfer {}", transferId);
 
@@ -127,7 +107,7 @@ public class TransferEventHandler {
         source.creditTransfer(event.getAmount(), transferId + "-REVERSAL", "TRANSFER_SYSTEM");
         saveAccountPort.save(source);
 
-        eventPublisher.publishEvent(new com.coreledger.shared.events.TransferReversed(
+        eventPublisher.publishAccountEvent(new TransferReversed(
                 transferId,
                 source.getAccountNumber(),
                 event.getAmount()));
