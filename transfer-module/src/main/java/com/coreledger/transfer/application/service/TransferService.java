@@ -5,7 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.context.event.EventListener;
+// import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +26,7 @@ import com.coreledger.transfer.domain.exceptions.InvalidTransferException;
 import com.coreledger.transfer.domain.exceptions.TransferNotFoundException;
 import com.coreledger.transfer.domain.model.Transfer;
 import com.coreledger.transfer.domain.model.TransferId;
+import com.coreledger.transfer.domain.model.TransferStatus;
 
 /**
  * Application service for the transfer bounded context.
@@ -78,6 +79,58 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
         this.eventPublisher = eventPublisher;
     }
 
+    @KafkaListener(topics = "${kafka.topics.account-events}", groupId = "coreledger-transfer", containerFactory = "kafkaListenerContainerFactory")
+    @Transactional
+    public void onAccountEvent(@Payload Object event) {
+        if (event instanceof MoneyWithdrawn e) {
+            handleMoneyWithdrawn(e);
+        } else if (event instanceof MoneyDeposited e) {
+            handleMoneyDeposited(e);
+        } else if (event instanceof TransferReversed e) { // ← add this
+            String transferId = e.getAggregateId();
+            loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
+                transfer.markReversed();
+                saveTransferPort.save(transfer);
+                log.info("Transfer {} REVERSED", transferId);
+            });
+        }
+    }
+
+    // @Transactional
+    private void handleMoneyWithdrawn(MoneyWithdrawn event) {
+        String transferId = event.getReference();
+        loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
+            if (transfer.getStatus() != TransferStatus.INITIATED)
+                return;
+            transfer.markDebited();
+            saveTransferPort.save(transfer);
+            log.info("Transfer {} marked DEBITED", transferId);
+        });
+    }
+
+    // @Transactional
+    private void handleMoneyDeposited(MoneyDeposited event) {
+        String transferId = event.getReference();
+        loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
+            // Accept DEBITED or INITIATED — both events may arrive before DB commits
+            if (transfer.getStatus() != TransferStatus.DEBITED
+                    && transfer.getStatus() != TransferStatus.INITIATED)
+                return;
+            try {
+                transfer.markCompleted(); // your domain model should allow this
+                saveTransferPort.save(transfer);
+                eventPublisher.publishTransferEvent(new TransferCompleted(
+                        transfer.getId().toString(),
+                        transfer.getSourceAccountNumber(),
+                        transfer.getDestinationAccountNumber(),
+                        transfer.getAmount()));
+                log.info("Transfer {} COMPLETED", transferId);
+            } catch (Exception e) {
+                log.error("Failed to complete transfer {}", transferId, e);
+                handleTransferFailure(transfer, "Failed to mark completed: " + e.getMessage());
+            }
+        });
+    }
     // -------------------------------------------------------------------------
     // InitiateTransferUseCase
     // -------------------------------------------------------------------------
@@ -137,67 +190,69 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
      * Advance transfer to DEBITED state.
      * Account-module's TransferInitiatedHandler will now credit destination.
      */
-    @KafkaListener(topics = "${kafka.topics.account-events}", groupId = "coreledger-transfer", containerFactory = "kafkaListenerContainerFactory")
-    @Transactional
-    public void onMoneyWithdrawn(@Payload MoneyWithdrawn event) {
-        // Only handle withdrawals that are part of a transfer
-        // (reference will be the transferId for transfer-related withdrawals)
-        String transferId = event.getReference();
-        loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
-            try {
-                transfer.markDebited();
-                saveTransferPort.save(transfer);
-                log.info("Transfer {} marked DEBITED", transferId);
-            } catch (Exception e) {
-                log.error("Failed to mark transfer {} as DEBITED", transferId, e);
-            }
-        });
-    }
+    // @KafkaListener(topics = "${kafka.topics.account-events}", groupId =
+    // "coreledger-transfer", containerFactory = "kafkaListenerContainerFactory")
+    // @Transactional
+    // public void onMoneyWithdrawn(@Payload MoneyWithdrawn event) {
+    // // Only handle withdrawals that are part of a transfer
+    // // (reference will be the transferId for transfer-related withdrawals)
+    // String transferId = event.getReference();
+    // loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
+    // try {
+    // transfer.markDebited();
+    // saveTransferPort.save(transfer);
+    // log.info("Transfer {} marked DEBITED", transferId);
+    // } catch (Exception e) {
+    // log.error("Failed to mark transfer {} as DEBITED", transferId, e);
+    // }
+    // });
+    // }
 
     /**
      * Account-module has successfully credited the destination.
      * Advance transfer to COMPLETED.
      */
-    @KafkaListener(topics = "${kafka.topics.account-events}", groupId = "coreledger-transfer", containerFactory = "kafkaListenerContainerFactory")
-    @Transactional
-    public void onMoneyDeposited(@Payload MoneyDeposited event) {
-        String transferId = event.getReference();
-        loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
-            if (!transfer.isDebited())
-                return; // deposit unrelated to this transfer
+    // @KafkaListener(topics = "${kafka.topics.account-events}", groupId =
+    // "coreledger-transfer", containerFactory = "kafkaListenerContainerFactory")
+    // @Transactional
+    // public void onMoneyDeposited(@Payload MoneyDeposited event) {
+    // String transferId = event.getReference();
+    // loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
+    // if (!transfer.isDebited())
+    // return; // deposit unrelated to this transfer
 
-            try {
-                transfer.markCompleted();
-                saveTransferPort.save(transfer);
+    // try {
+    // transfer.markCompleted();
+    // saveTransferPort.save(transfer);
 
-                eventPublisher.publishTransferEvent(new TransferCompleted(
-                        transfer.getId().toString(),
-                        transfer.getSourceAccountNumber(),
-                        transfer.getDestinationAccountNumber(),
-                        transfer.getAmount()));
+    // eventPublisher.publishTransferEvent(new TransferCompleted(
+    // transfer.getId().toString(),
+    // transfer.getSourceAccountNumber(),
+    // transfer.getDestinationAccountNumber(),
+    // transfer.getAmount()));
 
-                log.info("Transfer {} COMPLETED", transferId);
-            } catch (Exception e) {
-                log.error("Failed to complete transfer {}", transferId, e);
-                handleTransferFailure(transfer, "Failed to mark transfer completed: "
-                        + e.getMessage());
-            }
-        });
-    }
+    // log.info("Transfer {} COMPLETED", transferId);
+    // } catch (Exception e) {
+    // log.error("Failed to complete transfer {}", transferId, e);
+    // handleTransferFailure(transfer, "Failed to mark transfer completed: "
+    // + e.getMessage());
+    // }
+    // });
+    // }
 
     /**
      * Account-module has reversed the source debit.
      * Mark transfer as REVERSED — terminal state.
      */
-    @EventListener
-    public void onTransferReversed(TransferReversed event) {
-        String transferId = event.getAggregateId();
-        loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
-            transfer.markReversed();
-            saveTransferPort.save(transfer);
-            log.info("Transfer {} REVERSED", transferId);
-        });
-    }
+    // @EventListener
+    // public void onTransferReversed(TransferReversed event) {
+    // String transferId = event.getAggregateId();
+    // loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
+    // transfer.markReversed();
+    // saveTransferPort.save(transfer);
+    // log.info("Transfer {} REVERSED", transferId);
+    // });
+    // }
 
     // -------------------------------------------------------------------------
     // Internal helpers

@@ -1,0 +1,69 @@
+=== Create source account ===
+{
+  "accountId": "3eb26d6e-c0be-47bc-b345-ddf1ede8409f",
+  "accountNumber": "9333164107",
+  "ownerName": "Ada Obi",
+  "currency": "NGN",
+  "balance": 0,
+  "status": "ACTIVE",
+  "createdAt": "2026-03-11T07:34:03.508018742Z"
+}
+=== Create destination account ===
+{
+  "accountId": "e21235a6-6149-4f7a-8599-3a02c16e6ef8",
+  "accountNumber": "3473080407",
+  "ownerName": "Chidi Okeke",
+  "currency": "NGN",
+  "balance": 0,
+  "status": "ACTIVE",
+  "createdAt": "2026-03-11T07:34:03.585347591Z"
+}
+=== Deposit 10000 into source ===
+{
+  "transactionId": "94271751-06f9-419a-8380-e26bf856e97e",
+  "accountNumber": "9333164107",
+  "amount": 10000.00,
+  "balanceAfter": 10000.00,
+  "timestamp": "2026-03-11T07:34:03.902172323Z"
+}
+=== Initiate transfer of 3000 ===
+{
+  "transferId": "1e80f65d-d9f9-4796-99ae-9bae8ae8c74a",
+  "sourceAccountNumber": "9333164107",
+  "destinationAccountNumber": "3473080407",
+  "amount": 3000.00,
+  "currency": "NGN",
+  "status": "INITIATED",
+  "failureReason": null,
+  "createdAt": "2026-03-11T07:34:04.076347474Z"
+}
+=== Waiting 2s for Kafka to process ===
+=== Get transfer status (expect COMPLETED) ===
+{
+  "transferId": "1e80f65d-d9f9-4796-99ae-9bae8ae8c74a",
+  "sourceAccountNumber": "9333164107",
+  "destinationAccountNumber": "3473080407",
+  "amount": 3000.00,
+  "currency": "NGN",
+  "status": "INITIATED",
+  "failureReason": null,
+  "createdAt": "2026-03-11T07:34:04.076347Z"
+}
+=== Source balance (expect 7000) ===
+10000.00
+=== Destination balance (expect 3000) ===
+0.00
+
+===========================================================
+Errors
+===========================================================
+
+2026-03-11T08:35:02.782+01:00 ERROR 67124 --- [coreledger] [ntainer#2-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : Consumer exception
+
+java.lang.IllegalStateException: This error handler cannot process 'SerializationException's directly; please consider configuring an 'ErrorHandlingDeserializer' in the value and/or key deserializer
+2026-03-11T08:35:02.783+01:00 ERROR 67124 --- [coreledger] [ntainer#2-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : Consumer exception
+
+java.lang.IllegalStateException: This error handler cannot process 'SerializationException's directly; please consider configuring an 'ErrorHandlingDeserializer' in the value and/or key deserializer
+2026-03-11T08:35:02.784+01:00 ERROR 67124 --- [coreledger] [ntainer#2-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : Consumer exception
+
+java.lang.IllegalStateException: This error handler cannot process 'SerializationException's directly; please consider configuring an 'ErrorHandlingDeserializer' in the value and/or key deserializer

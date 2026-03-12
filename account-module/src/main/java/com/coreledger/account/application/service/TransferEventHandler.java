@@ -53,7 +53,18 @@ public class TransferEventHandler {
 
     @KafkaListener(topics = "${kafka.topics.transfer-events}", groupId = "coreledger-account", containerFactory = "kafkaListenerContainerFactory")
     @Transactional
-    public void onTransferInitiated(@Payload TransferInitiated event) {
+    public void onTransferEvent(@Payload Object event) {
+        if (event instanceof TransferInitiated e) {
+            onTransferInitiated(e);
+        } else if (event instanceof TransferFailed e) {
+            onTransferFailed(e);
+        }
+    }
+
+    // @KafkaListener(topics = "${kafka.topics.transfer-events}", groupId =
+    // "coreledger-account", containerFactory = "kafkaListenerContainerFactory")
+    // @Transactional
+    private void onTransferInitiated(@Payload TransferInitiated event) {
         String transferId = event.getAggregateId();
         log.info("Handling TransferInitiated for transfer {}", transferId);
 
@@ -92,9 +103,10 @@ public class TransferEventHandler {
         log.info("Transfer {} — debit and credit applied", transferId);
     }
 
-    @KafkaListener(topics = "${kafka.topics.transfer-events}", groupId = "coreledger-account", containerFactory = "kafkaListenerContainerFactory")
-    @Transactional
-    public void onTransferFailed(@Payload TransferFailed event) {
+    // @KafkaListener(topics = "${kafka.topics.transfer-events}", groupId =
+    // "coreledger-account", containerFactory = "kafkaListenerContainerFactory")
+    // @Transactional
+    private void onTransferFailed(@Payload TransferFailed event) {
         String transferId = event.getAggregateId();
         log.warn("Handling TransferFailed reversal for transfer {}", transferId);
 
