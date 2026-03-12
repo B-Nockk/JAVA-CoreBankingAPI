@@ -5,18 +5,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.messaging.handler.annotation.Payload;
-// import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.coreledger.shared.DomainEventPublisher;
+import com.coreledger.shared.domain.DomainEvent;
 import com.coreledger.shared.domain.Money;
 import com.coreledger.shared.events.MoneyDeposited;
 import com.coreledger.shared.events.MoneyWithdrawn;
 import com.coreledger.shared.events.TransferCompleted;
 import com.coreledger.shared.events.TransferFailed;
-import com.coreledger.shared.events.TransferInitiated;
 import com.coreledger.shared.events.TransferReversed;
+import com.coreledger.shared.kafka.EventDeserializer;
+import com.coreledger.shared.kafka.EventEnvelope;
 import com.coreledger.transfer.application.port.in.GetTransferUseCase;
 import com.coreledger.transfer.application.port.in.InitiateTransferUseCase;
 import com.coreledger.transfer.application.port.out.AccountVerificationPort;
@@ -31,34 +32,23 @@ import com.coreledger.transfer.domain.model.TransferStatus;
 /**
  * Application service for the transfer bounded context.
  *
- * Two responsibilities:
- * 1. Initiating transfers (inbound use case)
- * 2. Reacting to account-module events to advance the transfer lifecycle
+ * Choreography flow:
  *
- * The choreography flow this service participates in:
- *
- * initiate()
+ * execute()
  * → saves Transfer(INITIATED)
  * → publishes TransferInitiated
  *
- * onMoneyWithdrawn() [listens to account-module event]
+ * onAccountEvent receives MoneyWithdrawn
  * → marks Transfer(DEBITED)
- * → publishes credit instruction via TransferInitiated with debit confirmed
- * (account-module's handler will credit destination on MoneyWithdrawn)
  *
- * onMoneyDeposited() [listens to account-module event]
+ * onAccountEvent receives MoneyDeposited
  * → marks Transfer(COMPLETED)
  * → publishes TransferCompleted
  *
- * onTransferFailed() [self-published or from account-module failure]
- * → marks Transfer(FAILED)
- * → publishes TransferFailed if source was already debited (triggers reversal)
- *
- * onTransferReversed() [listens to account-module event]
+ * onAccountEvent receives TransferReversed
  * → marks Transfer(REVERSED)
  */
 @Service
-@Transactional
 public class TransferService implements InitiateTransferUseCase, GetTransferUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(TransferService.class);
@@ -67,38 +57,50 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
     private final SaveTransferPort saveTransferPort;
     private final AccountVerificationPort accountVerificationPort;
     private final DomainEventPublisher eventPublisher;
+    private final EventDeserializer eventDeserializer;
 
     public TransferService(
             LoadTransferPort loadTransferPort,
             SaveTransferPort saveTransferPort,
             AccountVerificationPort accountVerificationPort,
-            DomainEventPublisher eventPublisher) {
+            DomainEventPublisher eventPublisher,
+            EventDeserializer eventDeserializer) {
         this.loadTransferPort = loadTransferPort;
         this.saveTransferPort = saveTransferPort;
         this.accountVerificationPort = accountVerificationPort;
         this.eventPublisher = eventPublisher;
+        this.eventDeserializer = eventDeserializer;
     }
+
+    // ── Kafka listener ────────────────────────────────────────────────────────
 
     @KafkaListener(topics = "${kafka.topics.account-events}", groupId = "coreledger-transfer", containerFactory = "kafkaListenerContainerFactory")
     @Transactional
-    public void onAccountEvent(@Payload Object event) {
+    public void onAccountEvent(@Payload EventEnvelope envelope) {
+        DomainEvent event = eventDeserializer.deserialize(envelope);
+        if (event == null)
+            return;
+
         if (event instanceof MoneyWithdrawn e) {
             handleMoneyWithdrawn(e);
         } else if (event instanceof MoneyDeposited e) {
             handleMoneyDeposited(e);
-        } else if (event instanceof TransferReversed e) { // ← add this
-            String transferId = e.getAggregateId();
-            loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
-                transfer.markReversed();
-                saveTransferPort.save(transfer);
-                log.info("Transfer {} REVERSED", transferId);
-            });
+        } else if (event instanceof TransferReversed e) {
+            handleTransferReversed(e);
         }
+        // AccountCreated etc. intentionally ignored
     }
 
-    // @Transactional
     private void handleMoneyWithdrawn(MoneyWithdrawn event) {
+        String reference = event.getReference();
+        if (!isTransferId(reference)) {
+            log.debug("Ignoring MoneyWithdrawn with non-transfer reference='{}'", reference);
+            return;
+        }
+
         String transferId = event.getReference();
+        log.debug("Handling MoneyWithdrawn for transferId={}", transferId);
+
         loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
             if (transfer.getStatus() != TransferStatus.INITIATED)
                 return;
@@ -108,16 +110,27 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
         });
     }
 
-    // @Transactional
     private void handleMoneyDeposited(MoneyDeposited event) {
+        String reference = event.getReference();
+        if (!isTransferId(reference)) {
+            log.debug("Ignoring MoneyDeposited with non-transfer reference='{}'", reference);
+            return;
+        }
+
         String transferId = event.getReference();
+        log.debug("Handling MoneyDeposited for transferId={}", transferId);
+
         loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
-            // Accept DEBITED or INITIATED — both events may arrive before DB commits
+            // Accept INITIATED or DEBITED — both events may arrive near-simultaneously
+            // since TransferEventHandler does debit+credit in one transaction
             if (transfer.getStatus() != TransferStatus.DEBITED
-                    && transfer.getStatus() != TransferStatus.INITIATED)
+                    && transfer.getStatus() != TransferStatus.INITIATED) {
+                log.debug("Ignoring MoneyDeposited for transfer {} in status {}",
+                        transferId, transfer.getStatus());
                 return;
+            }
             try {
-                transfer.markCompleted(); // your domain model should allow this
+                transfer.markCompleted();
                 saveTransferPort.save(transfer);
                 eventPublisher.publishTransferEvent(new TransferCompleted(
                         transfer.getId().toString(),
@@ -126,32 +139,40 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
                         transfer.getAmount()));
                 log.info("Transfer {} COMPLETED", transferId);
             } catch (Exception e) {
-                log.error("Failed to complete transfer {}", transferId, e);
+                log.error("Failed to complete transfer {}: {}", transferId, e.getMessage(), e);
                 handleTransferFailure(transfer, "Failed to mark completed: " + e.getMessage());
             }
         });
     }
-    // -------------------------------------------------------------------------
-    // InitiateTransferUseCase
-    // -------------------------------------------------------------------------
+
+    private void handleTransferReversed(TransferReversed event) {
+        String transferId = event.getAggregateId();
+        log.debug("Handling TransferReversed for transferId={}", transferId);
+
+        loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
+            transfer.markReversed();
+            saveTransferPort.save(transfer);
+            log.info("Transfer {} REVERSED", transferId);
+        });
+    }
+
+    // ── InitiateTransferUseCase ───────────────────────────────────────────────
 
     @Override
+    @Transactional
     public InitiateTransferUseCase.TransferResult execute(Command command) {
-        // Verify both accounts exist and are active
         AccountVerificationPort.AccountView source = accountVerificationPort
                 .findActiveAccount(command.sourceAccountNumber());
         AccountVerificationPort.AccountView destination = accountVerificationPort
                 .findActiveAccount(command.destinationAccountNumber());
 
-        // Enforce same-currency transfers in v1
         if (source.currency() != destination.currency()) {
             throw new InvalidTransferException(
-                    "Cross-currency transfers not supported in v1: "
-                            + source.currency() + " → " + destination.currency());
+                    "Cross-currency transfers not supported: %s → %s"
+                            .formatted(source.currency(), destination.currency()));
         }
 
         Money amount = Money.of(command.amount(), source.currency());
-
         Transfer transfer = Transfer.initiate(
                 command.sourceAccountNumber(),
                 command.destinationAccountNumber(),
@@ -160,18 +181,20 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
 
         Transfer saved = saveTransferPort.save(transfer);
 
-        eventPublisher.publishTransferEvent(new TransferInitiated(
+        eventPublisher.publishTransferEvent(new com.coreledger.shared.events.TransferInitiated(
                 saved.getId().toString(),
                 saved.getSourceAccountNumber(),
                 saved.getDestinationAccountNumber(),
                 saved.getAmount()));
 
+        log.info("Transfer {} initiated from {} to {} amount={}",
+                saved.getId(), saved.getSourceAccountNumber(),
+                saved.getDestinationAccountNumber(), saved.getAmount());
+
         return toInitiateResult(saved);
     }
 
-    // -------------------------------------------------------------------------
-    // GetTransferUseCase
-    // -------------------------------------------------------------------------
+    // ── GetTransferUseCase ────────────────────────────────────────────────────
 
     @Override
     @Transactional(readOnly = true)
@@ -181,82 +204,7 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
                 .orElseThrow(() -> new TransferNotFoundException(transferId));
     }
 
-    // -------------------------------------------------------------------------
-    // Event listeners — choreography handlers
-    // -------------------------------------------------------------------------
-
-    /**
-     * Account-module has successfully debited the source.
-     * Advance transfer to DEBITED state.
-     * Account-module's TransferInitiatedHandler will now credit destination.
-     */
-    // @KafkaListener(topics = "${kafka.topics.account-events}", groupId =
-    // "coreledger-transfer", containerFactory = "kafkaListenerContainerFactory")
-    // @Transactional
-    // public void onMoneyWithdrawn(@Payload MoneyWithdrawn event) {
-    // // Only handle withdrawals that are part of a transfer
-    // // (reference will be the transferId for transfer-related withdrawals)
-    // String transferId = event.getReference();
-    // loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
-    // try {
-    // transfer.markDebited();
-    // saveTransferPort.save(transfer);
-    // log.info("Transfer {} marked DEBITED", transferId);
-    // } catch (Exception e) {
-    // log.error("Failed to mark transfer {} as DEBITED", transferId, e);
-    // }
-    // });
-    // }
-
-    /**
-     * Account-module has successfully credited the destination.
-     * Advance transfer to COMPLETED.
-     */
-    // @KafkaListener(topics = "${kafka.topics.account-events}", groupId =
-    // "coreledger-transfer", containerFactory = "kafkaListenerContainerFactory")
-    // @Transactional
-    // public void onMoneyDeposited(@Payload MoneyDeposited event) {
-    // String transferId = event.getReference();
-    // loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
-    // if (!transfer.isDebited())
-    // return; // deposit unrelated to this transfer
-
-    // try {
-    // transfer.markCompleted();
-    // saveTransferPort.save(transfer);
-
-    // eventPublisher.publishTransferEvent(new TransferCompleted(
-    // transfer.getId().toString(),
-    // transfer.getSourceAccountNumber(),
-    // transfer.getDestinationAccountNumber(),
-    // transfer.getAmount()));
-
-    // log.info("Transfer {} COMPLETED", transferId);
-    // } catch (Exception e) {
-    // log.error("Failed to complete transfer {}", transferId, e);
-    // handleTransferFailure(transfer, "Failed to mark transfer completed: "
-    // + e.getMessage());
-    // }
-    // });
-    // }
-
-    /**
-     * Account-module has reversed the source debit.
-     * Mark transfer as REVERSED — terminal state.
-     */
-    // @EventListener
-    // public void onTransferReversed(TransferReversed event) {
-    // String transferId = event.getAggregateId();
-    // loadTransferPort.findById(TransferId.of(transferId)).ifPresent(transfer -> {
-    // transfer.markReversed();
-    // saveTransferPort.save(transfer);
-    // log.info("Transfer {} REVERSED", transferId);
-    // });
-    // }
-
-    // -------------------------------------------------------------------------
-    // Internal helpers
-    // -------------------------------------------------------------------------
+    // ── Internal helpers ──────────────────────────────────────────────────────
 
     private void handleTransferFailure(Transfer transfer, String reason) {
         boolean wasDebited = transfer.isDebited();
@@ -264,7 +212,6 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
         saveTransferPort.save(transfer);
 
         if (wasDebited) {
-            // Money left the source — trigger reversal
             eventPublisher.publishTransferEvent(new TransferFailed(
                     transfer.getId().toString(),
                     transfer.getSourceAccountNumber(),
@@ -274,10 +221,6 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
 
         log.warn("Transfer {} FAILED: {}", transfer.getId(), reason);
     }
-
-    // -------------------------------------------------------------------------
-    // Mapping
-    // -------------------------------------------------------------------------
 
     private InitiateTransferUseCase.TransferResult toInitiateResult(Transfer transfer) {
         return new InitiateTransferUseCase.TransferResult(
@@ -300,5 +243,16 @@ public class TransferService implements InitiateTransferUseCase, GetTransferUseC
                 transfer.getStatus().name(),
                 transfer.getFailureReason(),
                 transfer.getAudit().getCreatedAt());
+    }
+
+    private static boolean isTransferId(String reference) {
+        if (reference == null)
+            return false;
+        try {
+            java.util.UUID.fromString(reference);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }

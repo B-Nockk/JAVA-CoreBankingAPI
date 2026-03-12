@@ -1,0 +1,409 @@
+=======================
+MoneyDeposited.java
+=======================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MoneyDeposited.java
+// shared-kernel/src/main/java/com/coreledger/shared/events/MoneyDeposited.java
+// ─────────────────────────────────────────────────────────────────────────────
+package com.coreledger.shared.events;
+
+import java.time.Instant;
+
+import com.coreledger.shared.domain.DomainEvent;
+import com.coreledger.shared.domain.Money;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public final class MoneyDeposited extends DomainEvent {
+
+    private final String accountNumber;
+    private final Money amount;
+    private final Money balanceAfter;
+    private final String reference;
+
+    public MoneyDeposited(String accountId, String accountNumber,
+            Money amount, Money balanceAfter, String reference) {
+        super(accountId);
+        this.accountNumber = accountNumber;
+        this.amount = amount;
+        this.balanceAfter = balanceAfter;
+        this.reference = reference;
+    }
+
+    @JsonCreator
+    private MoneyDeposited(
+            @JsonProperty("aggregateId") String aggregateId,
+            @JsonProperty("eventId") String eventId,
+            @JsonProperty("occurredOn") Instant occurredOn,
+            @JsonProperty("accountNumber") String accountNumber,
+            @JsonProperty("amount") Money amount,
+            @JsonProperty("balanceAfter") Money balanceAfter,
+            @JsonProperty("reference") String reference) {
+        super(aggregateId, eventId, occurredOn);
+        this.accountNumber = accountNumber;
+        this.amount = amount;
+        this.balanceAfter = balanceAfter;
+        this.reference = reference;
+    }
+
+    @JsonProperty
+    public String getAccountNumber() {
+        return accountNumber;
+    }
+
+    @JsonProperty
+    public Money getAmount() {
+        return amount;
+    }
+
+    @JsonProperty
+    public Money getBalanceAfter() {
+        return balanceAfter;
+    }
+
+    @JsonProperty
+    public String getReference() {
+        return reference;
+    }
+}
+
+
+=======================
+MoneyWithdrawn.java
+=======================
+// ─────────────────────────────────────────────────────────────────────────────
+// MoneyWithdrawn.java
+// shared-kernel/src/main/java/com/coreledger/shared/events/MoneyWithdrawn.java
+// ─────────────────────────────────────────────────────────────────────────────
+package com.coreledger.shared.events;
+
+import java.time.Instant;
+
+import com.coreledger.shared.domain.DomainEvent;
+import com.coreledger.shared.domain.Money;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public final class MoneyWithdrawn extends DomainEvent {
+
+    private final String accountNumber;
+    private final Money amount;
+    private final Money balanceAfter;
+    private final String reference;
+
+    public MoneyWithdrawn(String accountId, String accountNumber,
+            Money amount, Money balanceAfter, String reference) {
+        super(accountId);
+        this.accountNumber = accountNumber;
+        this.amount = amount;
+        this.balanceAfter = balanceAfter;
+        this.reference = reference;
+    }
+
+    @JsonCreator
+    private MoneyWithdrawn(
+            @JsonProperty("aggregateId") String aggregateId,
+            @JsonProperty("eventId") String eventId,
+            @JsonProperty("occurredOn") Instant occurredOn,
+            @JsonProperty("accountNumber") String accountNumber,
+            @JsonProperty("amount") Money amount,
+            @JsonProperty("balanceAfter") Money balanceAfter,
+            @JsonProperty("reference") String reference) {
+        super(aggregateId, eventId, occurredOn);
+        this.accountNumber = accountNumber;
+        this.amount = amount;
+        this.balanceAfter = balanceAfter;
+        this.reference = reference;
+    }
+
+    @JsonProperty
+    public String getAccountNumber() {
+        return accountNumber;
+    }
+
+    @JsonProperty
+    public Money getAmount() {
+        return amount;
+    }
+
+    @JsonProperty
+    public Money getBalanceAfter() {
+        return balanceAfter;
+    }
+
+    @JsonProperty
+    public String getReference() {
+        return reference;
+    }
+}
+
+
+=======================
+TransferCompleted.java
+=======================
+// ─────────────────────────────────────────────────────────────────────────────
+// TransferCompleted.java
+// shared-kernel/src/main/java/com/coreledger/shared/events/TransferCompleted.java
+// ─────────────────────────────────────────────────────────────────────────────
+package com.coreledger.shared.events;
+
+import java.time.Instant;
+
+import com.coreledger.shared.domain.DomainEvent;
+import com.coreledger.shared.domain.Money;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public final class TransferCompleted extends DomainEvent {
+
+    private final String sourceAccountNumber;
+    private final String destinationAccountNumber;
+    private final Money amount;
+
+    public TransferCompleted(String transferId, String sourceAccountNumber,
+            String destinationAccountNumber, Money amount) {
+        super(transferId);
+        this.sourceAccountNumber = sourceAccountNumber;
+        this.destinationAccountNumber = destinationAccountNumber;
+        this.amount = amount;
+    }
+
+    @JsonCreator
+    private TransferCompleted(
+            @JsonProperty("aggregateId") String aggregateId,
+            @JsonProperty("eventId") String eventId,
+            @JsonProperty("occurredOn") Instant occurredOn,
+            @JsonProperty("sourceAccountNumber") String sourceAccountNumber,
+            @JsonProperty("destinationAccountNumber") String destinationAccountNumber,
+            @JsonProperty("amount") Money amount) {
+        super(aggregateId, eventId, occurredOn);
+        this.sourceAccountNumber = sourceAccountNumber;
+        this.destinationAccountNumber = destinationAccountNumber;
+        this.amount = amount;
+    }
+
+    @JsonProperty
+    public String getSourceAccountNumber() {
+        return sourceAccountNumber;
+    }
+
+    @JsonProperty
+    public String getDestinationAccountNumber() {
+        return destinationAccountNumber;
+    }
+
+    @JsonProperty
+    public Money getAmount() {
+        return amount;
+    }
+}
+
+
+=======================
+TransferFailed.java
+=======================
+// ─────────────────────────────────────────────────────────────────────────────
+// TransferFailed.java
+// shared-kernel/src/main/java/com/coreledger/shared/events/TransferFailed.java
+// ─────────────────────────────────────────────────────────────────────────────
+package com.coreledger.shared.events;
+
+import java.time.Instant;
+
+import com.coreledger.shared.domain.DomainEvent;
+import com.coreledger.shared.domain.Money;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public final class TransferFailed extends DomainEvent {
+
+    private final String sourceAccountNumber;
+    private final Money amount;
+    private final String reason;
+
+    public TransferFailed(String transferId, String sourceAccountNumber,
+            Money amount, String reason) {
+        super(transferId);
+        this.sourceAccountNumber = sourceAccountNumber;
+        this.amount = amount;
+        this.reason = reason;
+    }
+
+    @JsonCreator
+    private TransferFailed(
+            @JsonProperty("aggregateId") String aggregateId,
+            @JsonProperty("eventId") String eventId,
+            @JsonProperty("occurredOn") Instant occurredOn,
+            @JsonProperty("sourceAccountNumber") String sourceAccountNumber,
+            @JsonProperty("amount") Money amount,
+            @JsonProperty("reason") String reason) {
+        super(aggregateId, eventId, occurredOn);
+        this.sourceAccountNumber = sourceAccountNumber;
+        this.amount = amount;
+        this.reason = reason;
+    }
+
+    @JsonProperty
+    public String getSourceAccountNumber() {
+        return sourceAccountNumber;
+    }
+
+    @JsonProperty
+    public Money getAmount() {
+        return amount;
+    }
+
+    @JsonProperty
+    public String getReason() {
+        return reason;
+    }
+}
+
+
+=======================
+TransferInitiated.java
+=======================
+// ─────────────────────────────────────────────────────────────────────────────
+// TransferInitiated.java
+// shared-kernel/src/main/java/com/coreledger/shared/events/TransferInitiated.java
+// ─────────────────────────────────────────────────────────────────────────────
+package com.coreledger.shared.events;
+
+import java.time.Instant;
+
+import com.coreledger.shared.domain.DomainEvent;
+import com.coreledger.shared.domain.Money;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public final class TransferInitiated extends DomainEvent {
+
+    private final String sourceAccountNumber;
+    private final String destinationAccountNumber;
+    private final Money amount;
+
+    public TransferInitiated(String transferId, String sourceAccountNumber,
+            String destinationAccountNumber, Money amount) {
+        super(transferId);
+        this.sourceAccountNumber = sourceAccountNumber;
+        this.destinationAccountNumber = destinationAccountNumber;
+        this.amount = amount;
+    }
+
+    @JsonCreator
+    private TransferInitiated(
+            @JsonProperty("aggregateId") String aggregateId,
+            @JsonProperty("eventId") String eventId,
+            @JsonProperty("occurredOn") Instant occurredOn,
+            @JsonProperty("sourceAccountNumber") String sourceAccountNumber,
+            @JsonProperty("destinationAccountNumber") String destinationAccountNumber,
+            @JsonProperty("amount") Money amount) {
+        super(aggregateId, eventId, occurredOn);
+        this.sourceAccountNumber = sourceAccountNumber;
+        this.destinationAccountNumber = destinationAccountNumber;
+        this.amount = amount;
+    }
+
+    @JsonProperty
+    public String getSourceAccountNumber() {
+        return sourceAccountNumber;
+    }
+
+    @JsonProperty
+    public String getDestinationAccountNumber() {
+        return destinationAccountNumber;
+    }
+
+    @JsonProperty
+    public Money getAmount() {
+        return amount;
+    }
+}
+
+
+=======================
+TransferReversed.java
+=======================
+// ─────────────────────────────────────────────────────────────────────────────
+// TransferReversed.java
+// shared-kernel/src/main/java/com/coreledger/shared/events/TransferReversed.java
+// ─────────────────────────────────────────────────────────────────────────────
+package com.coreledger.shared.events;
+
+import java.time.Instant;
+
+import com.coreledger.shared.domain.DomainEvent;
+import com.coreledger.shared.domain.Money;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public final class TransferReversed extends DomainEvent {
+
+    private final String sourceAccountNumber;
+    private final Money amount;
+
+    public TransferReversed(String transferId, String sourceAccountNumber, Money amount) {
+        super(transferId);
+        this.sourceAccountNumber = sourceAccountNumber;
+        this.amount = amount;
+    }
+
+    @JsonCreator
+    private TransferReversed(
+            @JsonProperty("aggregateId") String aggregateId,
+            @JsonProperty("eventId") String eventId,
+            @JsonProperty("occurredOn") Instant occurredOn,
+            @JsonProperty("sourceAccountNumber") String sourceAccountNumber,
+            @JsonProperty("amount") Money amount) {
+        super(aggregateId, eventId, occurredOn);
+        this.sourceAccountNumber = sourceAccountNumber;
+        this.amount = amount;
+    }
+
+    @JsonProperty
+    public String getSourceAccountNumber() {
+        return sourceAccountNumber;
+    }
+
+    @JsonProperty
+    public Money getAmount() {
+        return amount;
+    }
+}
+
+=======================
+concat-files.sh
+=======================
+#!/usr/bin/env bash
+
+# Default to current directory if no argument provided
+TARGET_DIR="${1:-$(pwd)}"
+
+# Derive folder name for output file
+FOLDER_NAME=$(basename "$TARGET_DIR")
+OUTPUT_FILE="${FOLDER_NAME}-combined.txt"
+
+# Empty the output file if it exists
+> "$OUTPUT_FILE"
+
+# Iterate over files in the target directory
+for file in "$TARGET_DIR"/*; do
+  if [ -f "$file" ]; then
+    relpath=$(realpath --relative-to="$TARGET_DIR" "$file")
+    echo "=======================" >> "$OUTPUT_FILE"
+    echo "$relpath" >> "$OUTPUT_FILE"
+    echo "=======================" >> "$OUTPUT_FILE"
+    cat "$file" >> "$OUTPUT_FILE"
+    echo -e "\n" >> "$OUTPUT_FILE"
+  fi
+done
+
+echo "All files from $TARGET_DIR have been combined into $OUTPUT_FILE"
+
+
+=======================
+events-combined.txt
+=======================
+
+

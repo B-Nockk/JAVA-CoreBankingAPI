@@ -1,4 +1,4 @@
-// account-module/src/main/java/com/coreledger/account/application/service/TransferEventHandler-kafka.java
+// account-module/src/main/java/com/coreledger/account/application/service/TransferEventHandler.java
 package com.coreledger.account.application.service;
 
 import org.slf4j.Logger;
@@ -14,25 +14,24 @@ import com.coreledger.account.domain.exceptions.AccountNotFoundException;
 import com.coreledger.account.domain.model.Account;
 import com.coreledger.account.domain.model.Transaction;
 import com.coreledger.shared.DomainEventPublisher;
+import com.coreledger.shared.domain.DomainEvent;
 import com.coreledger.shared.events.MoneyDeposited;
 import com.coreledger.shared.events.MoneyWithdrawn;
 import com.coreledger.shared.events.TransferFailed;
 import com.coreledger.shared.events.TransferInitiated;
 import com.coreledger.shared.events.TransferReversed;
+import com.coreledger.shared.kafka.EventDeserializer;
+import com.coreledger.shared.kafka.EventEnvelope;
 
 /**
- * Consumes transfer-domain events from Kafka and executes account-side
- * operations.
+ * Consumes transfer-domain events and executes account-side operations.
  *
  * Listens on: coreledger.transfer.events
- * Publishes to: coreledger.account.events (via EventPublisher)
+ * Publishes to: coreledger.account.events
  *
- * Each @KafkaListener method is its own transaction — if it fails, only that
- * message's processing rolls back. Kafka will redeliver it (at-least-once).
- *
- * groupId = "coreledger-account" — separate from transfer-module's consumer
- * group
- * so both modules can independently consume from the same topic if needed.
+ * The @KafkaListener receives an EventEnvelope (raw wrapper).
+ * eventDeserializer.deserialize() resolves the concrete event type.
+ * We then dispatch on instanceof — fully type-safe, no reflection in handlers.
  */
 @Service
 public class TransferEventHandler {
@@ -42,38 +41,45 @@ public class TransferEventHandler {
     private final LoadAccountPort loadAccountPort;
     private final SaveAccountPort saveAccountPort;
     private final DomainEventPublisher eventPublisher;
+    private final EventDeserializer eventDeserializer;
 
-    public TransferEventHandler(LoadAccountPort loadAccountPort,
+    public TransferEventHandler(
+            LoadAccountPort loadAccountPort,
             SaveAccountPort saveAccountPort,
-            DomainEventPublisher eventPublisher) {
+            DomainEventPublisher eventPublisher,
+            EventDeserializer eventDeserializer) {
         this.loadAccountPort = loadAccountPort;
         this.saveAccountPort = saveAccountPort;
         this.eventPublisher = eventPublisher;
+        this.eventDeserializer = eventDeserializer;
+
     }
 
     @KafkaListener(topics = "${kafka.topics.transfer-events}", groupId = "coreledger-account", containerFactory = "kafkaListenerContainerFactory")
     @Transactional
-    public void onTransferEvent(@Payload Object event) {
+    public void onTransferEvent(@Payload EventEnvelope envelope) {
+        DomainEvent event = eventDeserializer.deserialize(envelope);
+        if (event == null)
+            return; // unknown type or deserialization error — already logged
+
         if (event instanceof TransferInitiated e) {
-            onTransferInitiated(e);
+            handleTransferInitiated(e);
         } else if (event instanceof TransferFailed e) {
-            onTransferFailed(e);
+            handleTransferFailed(e);
         }
+        // Other event types on this topic are intentionally ignored
     }
 
-    // @KafkaListener(topics = "${kafka.topics.transfer-events}", groupId =
-    // "coreledger-account", containerFactory = "kafkaListenerContainerFactory")
-    // @Transactional
-    private void onTransferInitiated(@Payload TransferInitiated event) {
+    private void handleTransferInitiated(TransferInitiated event) {
         String transferId = event.getAggregateId();
-        log.info("Handling TransferInitiated for transfer {}", transferId);
+        log.info("Handling TransferInitiated transferId={}", transferId);
 
-        // Step 1: Debit source account
-        Account source = loadAccountPort.findByAccountNumber(event.getSourceAccountNumber())
+        // Debit source
+        Account source = loadAccountPort
+                .findByAccountNumber(event.getSourceAccountNumber())
                 .orElseThrow(() -> new AccountNotFoundException(event.getSourceAccountNumber()));
 
-        Transaction debitTx = source.debitTransfer(
-                event.getAmount(), transferId, "TRANSFER_SYSTEM");
+        Transaction debitTx = source.debitTransfer(event.getAmount(), transferId, "TRANSFER_SYSTEM");
         saveAccountPort.save(source);
 
         eventPublisher.publishAccountEvent(new MoneyWithdrawn(
@@ -83,14 +89,12 @@ public class TransferEventHandler {
                 debitTx.getBalanceAfter(),
                 transferId));
 
-        // Step 2: Credit destination account
+        // Credit destination
         Account destination = loadAccountPort
                 .findByAccountNumber(event.getDestinationAccountNumber())
-                .orElseThrow(() -> new AccountNotFoundException(
-                        event.getDestinationAccountNumber()));
+                .orElseThrow(() -> new AccountNotFoundException(event.getDestinationAccountNumber()));
 
-        Transaction creditTx = destination.creditTransfer(
-                event.getAmount(), transferId, "TRANSFER_SYSTEM");
+        Transaction creditTx = destination.creditTransfer(event.getAmount(), transferId, "TRANSFER_SYSTEM");
         saveAccountPort.save(destination);
 
         eventPublisher.publishAccountEvent(new MoneyDeposited(
@@ -100,22 +104,17 @@ public class TransferEventHandler {
                 creditTx.getBalanceAfter(),
                 transferId));
 
-        log.info("Transfer {} — debit and credit applied", transferId);
+        log.info("TransferInitiated handled — debit and credit applied transferId={}", transferId);
     }
 
-    // @KafkaListener(topics = "${kafka.topics.transfer-events}", groupId =
-    // "coreledger-account", containerFactory = "kafkaListenerContainerFactory")
-    // @Transactional
-    private void onTransferFailed(@Payload TransferFailed event) {
+    private void handleTransferFailed(TransferFailed event) {
         String transferId = event.getAggregateId();
-        log.warn("Handling TransferFailed reversal for transfer {}", transferId);
+        log.warn("Handling TransferFailed reversal transferId={}", transferId);
 
         Account source = loadAccountPort
                 .findByAccountNumber(event.getSourceAccountNumber())
-                .orElseThrow(() -> new AccountNotFoundException(
-                        event.getSourceAccountNumber()));
+                .orElseThrow(() -> new AccountNotFoundException(event.getSourceAccountNumber()));
 
-        // Re-credit source — money goes back
         source.creditTransfer(event.getAmount(), transferId + "-REVERSAL", "TRANSFER_SYSTEM");
         saveAccountPort.save(source);
 
@@ -124,6 +123,6 @@ public class TransferEventHandler {
                 source.getAccountNumber(),
                 event.getAmount()));
 
-        log.info("Transfer {} reversed — source account re-credited", transferId);
+        log.info("Transfer {} reversed — source re-credited", transferId);
     }
 }

@@ -1,25 +1,23 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// AccountCreated.java
 // account-module/src/main/java/com/coreledger/account/domain/events/AccountCreated.java
+// ─────────────────────────────────────────────────────────────────────────────
 package com.coreledger.account.domain.events;
+
+import java.time.Instant;
 
 import com.coreledger.shared.domain.Currency;
 import com.coreledger.shared.domain.DomainEvent;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
-/**
- * Raised when a new account is successfully opened.
- *
- * Carries only the data that downstream listeners need to react —
- * not the entire Account object. Events are self-contained facts.
- *
- * Potential listeners (in future modules):
- * - notification-module: send welcome message to account holder
- * - audit-module: log account opening for compliance
- */
 public final class AccountCreated extends DomainEvent {
 
     private final String accountNumber;
     private final String ownerName;
     private final Currency currency;
 
+    // Normal construction
     public AccountCreated(String accountId, String accountNumber,
             String ownerName, Currency currency) {
         super(accountId);
@@ -28,14 +26,39 @@ public final class AccountCreated extends DomainEvent {
         this.currency = currency;
     }
 
+    // Deserialization — restores original eventId and occurredOn from wire
+    @JsonCreator
+    static AccountCreated restore(
+            @JsonProperty("aggregateId") String aggregateId,
+            @JsonProperty("eventId") String eventId,
+            @JsonProperty("occurredOn") Instant occurredOn,
+            @JsonProperty("accountNumber") String accountNumber,
+            @JsonProperty("ownerName") String ownerName,
+            @JsonProperty("currency") Currency currency) {
+        AccountCreated e = new AccountCreated(aggregateId, accountNumber, ownerName, currency);
+        return new AccountCreated(aggregateId, eventId, occurredOn, accountNumber, ownerName, currency);
+    }
+
+    // Private restore constructor
+    private AccountCreated(String aggregateId, String eventId, Instant occurredOn,
+            String accountNumber, String ownerName, Currency currency) {
+        super(aggregateId, eventId, occurredOn);
+        this.accountNumber = accountNumber;
+        this.ownerName = ownerName;
+        this.currency = currency;
+    }
+
+    @JsonProperty
     public String getAccountNumber() {
         return accountNumber;
     }
 
+    @JsonProperty
     public String getOwnerName() {
         return ownerName;
     }
 
+    @JsonProperty
     public Currency getCurrency() {
         return currency;
     }

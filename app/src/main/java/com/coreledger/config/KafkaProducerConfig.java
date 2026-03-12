@@ -1,4 +1,8 @@
+// app/src/main/java/com/coreledger/config/KafkaProducerConfig.java
 package com.coreledger.config;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -12,24 +16,18 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Kafka producer configuration.
- * Separated from EventPublisher (@Component) because @Bean methods
- * are only processed by Spring when declared inside @Configuration classes.
+ *
+ * Key decision: we inject our custom ObjectMapper into JsonSerializer directly.
+ * This guarantees the producer uses the same serialization config as the rest
+ * of the app — no surprises from JsonSerializer's internal default mapper.
+ *
+ * Messages are plain JSON strings (no __TypeId__ headers).
+ * Type information travels inside the EventEnvelope.eventType field.
  */
 @Configuration
 public class KafkaProducerConfig {
-
-    static final String TYPE_MAPPINGS = "AccountCreated:com.coreledger.account.domain.events.AccountCreated," +
-            "MoneyDeposited:com.coreledger.shared.events.MoneyDeposited," +
-            "MoneyWithdrawn:com.coreledger.shared.events.MoneyWithdrawn," +
-            "TransferInitiated:com.coreledger.shared.events.TransferInitiated," +
-            "TransferCompleted:com.coreledger.shared.events.TransferCompleted," +
-            "TransferFailed:com.coreledger.shared.events.TransferFailed," +
-            "TransferReversed:com.coreledger.shared.events.TransferReversed";
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
@@ -37,7 +35,7 @@ public class KafkaProducerConfig {
     private final ObjectMapper objectMapper;
 
     public KafkaProducerConfig(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper; // inject your configured one
+        this.objectMapper = objectMapper;
     }
 
     @Bean
@@ -45,11 +43,14 @@ public class KafkaProducerConfig {
         Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        // We override the serializer instance below — this class config is
+        // required by Kafka but the actual instance takes precedence.
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-        props.put(JsonSerializer.TYPE_MAPPINGS, TYPE_MAPPINGS);
-        props.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, true);
+        // Disable Spring's __TypeId__ headers — we use EventEnvelope instead
+        props.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
 
         DefaultKafkaProducerFactory<String, Object> factory = new DefaultKafkaProducerFactory<>(props);
+        // Inject our ObjectMapper — this is the critical line
         factory.setValueSerializer(new JsonSerializer<>(objectMapper));
         return factory;
     }

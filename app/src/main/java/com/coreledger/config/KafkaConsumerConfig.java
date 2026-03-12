@@ -6,20 +6,49 @@ import java.util.Map;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.listener.CommonLoggingErrorHandler;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 
+import com.coreledger.shared.domain.DomainEvent;
+import com.coreledger.shared.kafka.EventDeserializer;
+import com.coreledger.shared.kafka.EventEnvelope;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * Kafka consumer configuration.
+ *
+ * Pipeline:
+ * 1. Raw bytes → EventEnvelope (StringDeserializer wraps JsonDeserializer)
+ * 2. Listener receives EventEnvelope
+ * 3. EventEnvelope.eventType looked up in EventRegistry
+ * 4. EventEnvelope.payload deserialized into the correct DomainEvent subclass
+ * 5. Handler dispatches on instanceof
+ *
+ * Error handling:
+ * - ErrorHandlingDeserializer wraps envelope deserialization.
+ * If the raw bytes can't be read as EventEnvelope, the error is logged
+ * and the message is skipped (offset committed). This prevents poison pills
+ * from blocking the consumer forever.
+ * - CommonLoggingErrorHandler logs any exception thrown by listener methods.
+ * - Both log at ERROR level with full stack trace — nothing swallowed silently.
+ *
+ * To add a new event type: add it to EventRegistry. Nothing changes here.
+ */
 @Configuration
-public class KafkaConsumerConfig {
+public class KafkaConsumerConfig implements EventDeserializer {
+
+    private static final Logger log = LoggerFactory.getLogger(KafkaConsumerConfig.class);
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
@@ -31,58 +60,68 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public ConsumerFactory<String, Object> consumerFactory() {
-        // Pass our ObjectMapper (with mix-ins) to JsonDeserializer
-        // Use Object.class — actual type resolved from __TypeId__ header
-        JsonDeserializer<Object> jsonDeserializer = new JsonDeserializer<>(Object.class, objectMapper);
-        jsonDeserializer.addTrustedPackages("com.coreledger.*");
-        jsonDeserializer.setUseTypeHeaders(true); // ← use __TypeId__ header to determine type
-        jsonDeserializer.setTypeMapper(typeMapper()); // ← resolve alias → class
+    public ConsumerFactory<String, EventEnvelope> consumerFactory() {
+        // Deserialize the envelope itself — concrete type is always EventEnvelope
+        JsonDeserializer<EventEnvelope> jsonDeserializer = new JsonDeserializer<>(EventEnvelope.class, objectMapper);
+        jsonDeserializer.setUseTypeHeaders(false); // we don't use __TypeId__ headers
 
-        ErrorHandlingDeserializer<Object> valueDeserializer = new ErrorHandlingDeserializer<>(jsonDeserializer);
+        ErrorHandlingDeserializer<EventEnvelope> valueDeserializer = new ErrorHandlingDeserializer<>(jsonDeserializer);
         ErrorHandlingDeserializer<String> keyDeserializer = new ErrorHandlingDeserializer<>(new StringDeserializer());
 
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "coreledger"); // ← add this
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "coreledger");
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class);
-        props.put("spring.deserializer.value.delegate.class", JsonDeserializer.class);
 
         return new DefaultKafkaConsumerFactory<>(props, keyDeserializer, valueDeserializer);
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
-            ConsumerFactory<String, Object> consumerFactory) {
-        ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
+    public ConcurrentKafkaListenerContainerFactory<String, EventEnvelope> kafkaListenerContainerFactory(
+            ConsumerFactory<String, EventEnvelope> consumerFactory) {
+        ConcurrentKafkaListenerContainerFactory<String, EventEnvelope> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.BATCH);
-        // log deserialization errors instead of silently skipping
-        factory.setCommonErrorHandler(new org.springframework.kafka.listener.CommonLoggingErrorHandler());
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+        // Logs full stack trace on any listener exception — no silent swallowing
+        factory.setCommonErrorHandler(new CommonLoggingErrorHandler());
         return factory;
     }
 
     /**
-     * Maps the short alias in __TypeId__ header → concrete class.
-     * Must mirror KafkaProducerConfig.TYPE_MAPPINGS exactly.
+     * Deserializes the envelope payload into the correct DomainEvent subclass.
+     * Call this from every @KafkaListener method.
+     *
+     * Returns null if eventType is unknown — listener should log and skip.
      */
-    private org.springframework.kafka.support.mapping.DefaultJackson2JavaTypeMapper typeMapper() {
-        org.springframework.kafka.support.mapping.DefaultJackson2JavaTypeMapper mapper = new org.springframework.kafka.support.mapping.DefaultJackson2JavaTypeMapper();
-        mapper.setTypePrecedence(
-                org.springframework.kafka.support.mapping.Jackson2JavaTypeMapper.TypePrecedence.TYPE_ID);
+    public DomainEvent deserialize(EventEnvelope envelope) {
+        if (envelope == null) {
+            log.error("Received null envelope from Kafka — skipping");
+            return null;
+        }
 
-        Map<String, Class<?>> mappings = new HashMap<>();
-        mappings.put("AccountCreated", com.coreledger.account.domain.events.AccountCreated.class);
-        mappings.put("MoneyDeposited", com.coreledger.shared.events.MoneyDeposited.class);
-        mappings.put("MoneyWithdrawn", com.coreledger.shared.events.MoneyWithdrawn.class);
-        mappings.put("TransferInitiated", com.coreledger.shared.events.TransferInitiated.class);
-        mappings.put("TransferCompleted", com.coreledger.shared.events.TransferCompleted.class);
-        mappings.put("TransferFailed", com.coreledger.shared.events.TransferFailed.class);
-        mappings.put("TransferReversed", com.coreledger.shared.events.TransferReversed.class);
-        mapper.setIdClassMapping(mappings);
+        String eventType = envelope.eventType();
+        // log.debug("Resolving eventType={} to {}", eventType, clazz.getName());
 
-        return mapper;
+        return EventRegistry.resolve(eventType)
+                .map(clazz -> {
+                    try {
+                        Object payload = envelope.payload();
+                        if (payload instanceof JsonNode node) {
+                            return (DomainEvent) objectMapper.treeToValue(node, clazz);
+                        } else {
+                            return (DomainEvent) objectMapper.convertValue(payload, clazz);
+                        }
+                    } catch (Exception e) {
+                        log.error("Failed to deserialize payload for eventType={} payload={}", eventType,
+                                envelope.payload(), e);
+                        return null;
+                    }
+                })
+                .orElseGet(() -> {
+                    log.warn("Unknown eventType='{}' — not in EventRegistry, skipping", eventType);
+                    return null;
+                });
+
     }
 }
