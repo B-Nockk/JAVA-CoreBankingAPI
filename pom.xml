@@ -23,6 +23,7 @@
         <module>shared-kernel</module>
         <module>account-module</module>
         <module>transfer-module</module>
+        <module>user-module</module>
         <module>app</module>
     </modules>
 

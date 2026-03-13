@@ -35,7 +35,6 @@ public final class AccountCreated extends DomainEvent {
             @JsonProperty("accountNumber") String accountNumber,
             @JsonProperty("ownerName") String ownerName,
             @JsonProperty("currency") Currency currency) {
-        AccountCreated e = new AccountCreated(aggregateId, accountNumber, ownerName, currency);
         return new AccountCreated(aggregateId, eventId, occurredOn, accountNumber, ownerName, currency);
     }
 
