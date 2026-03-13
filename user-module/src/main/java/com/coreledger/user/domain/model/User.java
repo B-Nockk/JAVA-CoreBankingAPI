@@ -17,7 +17,8 @@ public class User {
     private final String lastName;
     private final String address;
     private final UserType userType;
-
+    private final String phone;
+    private final String email;
     private UserStatus status;
 
     private User(
@@ -25,25 +26,37 @@ public class User {
             String firstName,
             String lastName,
             String address,
+            String phone,
+            String email,
             UserType userType) {
         this.id = Objects.requireNonNull(id);
         this.firstName = Objects.requireNonNull(firstName);
         this.lastName = Objects.requireNonNull(lastName);
         this.address = Objects.requireNonNull(address);
         this.status = UserStatus.ACTIVE;
-        this.userType = userType;
+        this.phone = Objects.requireNonNull(phone);
+        this.email = Objects.requireNonNull(email);
+        this.userType = Objects.requireNonNull(userType);
     }
 
     public static User create(
             String firstName,
             String lastName,
             String address,
+            String phone,
+            String email,
             UserType userType) {
-        return new User(UserId.generate(),
+        User user = new User(
+                UserId.generate(),
                 firstName,
                 lastName,
                 address,
+                phone,
+                email,
                 userType);
+
+        // TODO:: Raise Tier 1 event
+        return user;
     }
 
     public static User reconstituteUser(
@@ -52,8 +65,10 @@ public class User {
             String lastName,
             String address,
             UserStatus status,
+            String phone,
+            String email,
             UserType userType) {
-        User user = new User(id, firstName, lastName, address, userType);
+        User user = new User(id, firstName, lastName, address, phone, email, userType);
         user.status = status;
         return user;
     }
@@ -116,6 +131,14 @@ public class User {
 
     public String getAddress() {
         return address;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public String getEmail() {
+        return email;
     }
 
     public UserType getUserType() {
