@@ -1,6 +1,7 @@
 // user-module/src/main/java/com/coreledger/user/domain/model/User.java
 package com.coreledger.user.domain.model;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 
@@ -16,9 +17,10 @@ public class User {
     private final String firstName;
     private final String lastName;
     private final String address;
-    private final UserType userType;
     private final String phone;
     private final String email;
+    private final LocalDate dateOfBirth;
+    private final UserRole userRole;
     private UserStatus status;
 
     private User(
@@ -28,15 +30,17 @@ public class User {
             String address,
             String phone,
             String email,
-            UserType userType) {
+            LocalDate dateOfBirth,
+            UserRole userRole) {
         this.id = Objects.requireNonNull(id);
         this.firstName = Objects.requireNonNull(firstName);
         this.lastName = Objects.requireNonNull(lastName);
         this.address = Objects.requireNonNull(address);
-        this.status = UserStatus.ACTIVE;
         this.phone = Objects.requireNonNull(phone);
         this.email = Objects.requireNonNull(email);
-        this.userType = Objects.requireNonNull(userType);
+        this.dateOfBirth = Objects.requireNonNull(dateOfBirth);
+        this.userRole = Objects.requireNonNull(userRole);
+        this.status = UserStatus.ACTIVE;
     }
 
     public static User create(
@@ -45,18 +49,17 @@ public class User {
             String address,
             String phone,
             String email,
-            UserType userType) {
-        User user = new User(
+            LocalDate dateOfBirth,
+            UserRole userRole) {
+        return new User(
                 UserId.generate(),
                 firstName,
                 lastName,
                 address,
                 phone,
                 email,
-                userType);
-
-        // TODO:: Raise Tier 1 event
-        return user;
+                dateOfBirth,
+                userRole);
     }
 
     public static User reconstituteUser(
@@ -67,8 +70,9 @@ public class User {
             UserStatus status,
             String phone,
             String email,
-            UserType userType) {
-        User user = new User(id, firstName, lastName, address, phone, email, userType);
+            LocalDate dateOfBirth,
+            UserRole userRole) {
+        User user = new User(id, firstName, lastName, address, phone, email, dateOfBirth, userRole);
         user.status = status;
         return user;
     }
@@ -141,7 +145,11 @@ public class User {
         return email;
     }
 
-    public UserType getUserType() {
-        return userType;
+    public UserRole getUserRole() {
+        return userRole;
+    }
+
+    public LocalDate getDateOfBirth() {
+        return dateOfBirth;
     }
 }

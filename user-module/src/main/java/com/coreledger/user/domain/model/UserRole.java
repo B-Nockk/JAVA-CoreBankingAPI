@@ -1,6 +1,6 @@
 package com.coreledger.user.domain.model;
 
-public enum UserType {
+public enum UserRole {
     CUSTOMER, // can own accounts, make transfers
     EMPLOYEE, // bank staff, no personal accounts in this system
     ADMIN, // system administration
