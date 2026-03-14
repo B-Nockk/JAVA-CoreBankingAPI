@@ -11,6 +11,7 @@ import java.util.Objects;
  */
 public class KycProfile {
 
+    private final KycProfileId id;
     private final UserId userId;
     private final List<KycDocument> documents;
     private KycTier tier;
@@ -19,7 +20,8 @@ public class KycProfile {
      * Constructor is private to enforce controlled creation.
      * Use factory methods to create or reconstitute.
      */
-    private KycProfile(UserId userId, List<KycDocument> documents) {
+    private KycProfile(KycProfileId id, UserId userId, List<KycDocument> documents) {
+        this.id = Objects.requireNonNull(id, "KycProfileId is required");
         this.userId = Objects.requireNonNull(userId, "UserId is required");
         this.documents = Objects.requireNonNull(documents, "Documents list is required");
         this.tier = deriveTier(documents);
@@ -29,7 +31,13 @@ public class KycProfile {
      * Factory method to create a new KYC profile.
      */
     public static KycProfile create(UserId userId, List<KycDocument> documents) {
-        return new KycProfile(userId, documents);
+        return new KycProfile(KycProfileId.generate(), userId, documents);
+    }
+
+    public static KycProfile reconstitute(KycProfileId id, UserId userId, List<KycDocument> documents, KycTier tier) {
+        KycProfile profile = new KycProfile(id, userId, documents);
+        profile.tier = tier; // restore persisted tier
+        return profile;
     }
 
     // ====================================================
@@ -64,24 +72,6 @@ public class KycProfile {
         return KycTier.TIER_1;
     }
 
-    // ====================================================
-    // Assessors
-    // ====================================================
-
-    /**
-     * Returns the current KYC tier.
-     */
-    public KycTier getTier() {
-        return tier;
-    }
-
-    /**
-     * Returns the documents associated with this profile.
-     */
-    public List<KycDocument> getDocuments() {
-        return documents;
-    }
-
     /**
      * Recomputes kyc tier when document is submitted
      *
@@ -101,4 +91,31 @@ public class KycProfile {
     public KycSnapshot snapshot() {
         return new KycSnapshot(userId, tier, documents);
     }
+
+    // ====================================================
+    // Assessors
+    // ====================================================
+
+    /**
+     * Returns the current KYC tier.
+     */
+    public KycTier getTier() {
+        return tier;
+    }
+
+    /**
+     * Returns the documents associated with this profile.
+     */
+    public List<KycDocument> getDocuments() {
+        return documents;
+    }
+
+    public UserId getUserId() {
+        return userId;
+    }
+
+    public KycProfileId getId() {
+        return id;
+    }
+
 }
