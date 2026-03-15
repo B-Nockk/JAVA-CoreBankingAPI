@@ -130,6 +130,14 @@ public class User {
         return status;
     }
 
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
     public String getUserName() {
         return firstName + " " + lastName;
     }

@@ -11,11 +11,12 @@ import org.springframework.stereotype.Component;
 
 import com.coreledger.shared.domain.EmailAddress;
 import com.coreledger.user.application.port.out.LoadUserPort;
+import com.coreledger.user.application.port.out.SaveUserPort;
 import com.coreledger.user.domain.model.User;
 import com.coreledger.user.domain.model.UserId;
 
 @Component
-public class UserPersistenceAdapter implements LoadUserPort {
+public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort {
 
     private final UserJpaRepository userJpaRepository;
 
@@ -40,6 +41,13 @@ public class UserPersistenceAdapter implements LoadUserPort {
         return userJpaRepository.findAll(pageable).map(this::toDomain);
     }
 
+    @Override
+    public User save(User user) {
+        UserJpaEntity entity = toJpaEntity(user);
+        UserJpaEntity saved = userJpaRepository.save(entity);
+        return toDomain(saved);
+    }
+
     private User toDomain(UserJpaEntity entity) {
         return User.reconstituteUser(
                 UserId.of(entity.getId()),
@@ -51,5 +59,20 @@ public class UserPersistenceAdapter implements LoadUserPort {
                 EmailAddress.of(entity.getEmail()),
                 entity.getDateOfBirth(),
                 entity.getUserRole());
+    }
+
+    private UserJpaEntity toJpaEntity(User user) {
+        UserJpaEntity entity = new UserJpaEntity();
+        entity.setId(user.getId().getValue());
+        entity.setFirstName(user.getFirstName());
+        entity.setLastName(user.getLastName());
+        entity.setAddress(user.getAddress());
+        entity.setPhone(user.getPhone());
+        entity.setEmail(user.getEmail().toString());
+        entity.setDateOfBirth(user.getDateOfBirth());
+        entity.setUserRole(user.getUserRole());
+        entity.setUserStatus(user.getStatus());
+
+        return entity;
     }
 }
