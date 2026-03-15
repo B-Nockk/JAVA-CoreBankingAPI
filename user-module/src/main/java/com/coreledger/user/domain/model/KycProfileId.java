@@ -29,6 +29,14 @@ public final class KycProfileId {
         return new KycProfileId(id);
     }
 
+    public static KycProfileId of(UUID id) {
+        return new KycProfileId(id);
+    }
+
+    public static KycProfileId of(String id) {
+        return new KycProfileId(UUID.fromString(id));
+    }
+
     public UUID getValue() {
         return id;
     }

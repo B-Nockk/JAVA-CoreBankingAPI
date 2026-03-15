@@ -75,12 +75,39 @@ public class KycProfile {
     /**
      * Recomputes kyc tier when document is submitted
      *
+     * Submit a new document to the profile.
+     * Starts in SUBMITTED status.
+     *
      * @param document
      */
     public void submitDocument(KycDocument document) {
         // documents should be a mutable list internally
         this.documents.add(document);
-        this.tier = deriveTier(this.documents); // recompute
+        this.tier = deriveTier(this.documents);
+    }
+
+    /**
+     * Mark a document as verified by its ID.
+     * Recomputes tier after verification.
+     */
+    public void verifyDocument(KycDocumentId documentId) {
+        documents.stream()
+                .filter(d -> d.getId().equals(documentId))
+                .findFirst()
+                .ifPresent(KycDocument::markVerified);
+        this.tier = deriveTier(this.documents);
+    }
+
+    /**
+     * Reject a document by its ID, with a reason.
+     * Recomputes tier after rejection.
+     */
+    public void rejectDocument(KycDocumentId documentId, String reason) {
+        documents.stream()
+                .filter(d -> d.getId().equals(documentId))
+                .findFirst()
+                .ifPresent(d -> d.markRejected(reason));
+        this.tier = deriveTier(this.documents);
     }
 
     /**

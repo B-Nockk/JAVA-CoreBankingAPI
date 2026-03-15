@@ -2,6 +2,7 @@ package com.coreledger.user.infrastructure.persistence;
 
 import java.util.UUID;
 
+import com.coreledger.user.domain.model.KycDocumentStatus;
 import com.coreledger.user.domain.model.KycDocumentType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -31,9 +32,17 @@ public class KycDocumentJpaEntity {
     @Column(name = "type", nullable = false)
     private KycDocumentType type;
 
-    @Column(name = "verified", nullable = false)
-    private boolean verified;
+    // @Column(name = "verified", nullable = false)
+    // private boolean verified;
 
     @Column(name = "storagePath", nullable = false)
     private String storagePath; // reference to file storage (S3, DB blob, etc.)
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private KycDocumentStatus status;
+
+    @Column(name = "rejectionReason")
+    private String rejectionReason;
+
 }
