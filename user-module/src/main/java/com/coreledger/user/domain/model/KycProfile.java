@@ -80,8 +80,9 @@ public class KycProfile {
      *
      * @param document
      */
-    public void submitDocument(KycDocument document) {
+    public void submitDocument(KycDocumentType type) {
         // documents should be a mutable list internally
+        KycDocument document = KycDocument.submit(this.id, type);
         this.documents.add(document);
         this.tier = deriveTier(this.documents);
     }

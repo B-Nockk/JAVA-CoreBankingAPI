@@ -10,18 +10,20 @@ import java.util.Objects;
 public class KycDocument {
 
     private final KycDocumentId id;
+    private final KycProfileId profileId;
     private final KycDocumentType type;
     private KycDocumentStatus status;
     private String rejectionReason;
 
-    public KycDocument(KycDocumentId id, KycDocumentType type) {
+    public KycDocument(KycDocumentId id, KycProfileId profileId, KycDocumentType type) {
         this.id = Objects.requireNonNull(id);
+        this.profileId = Objects.requireNonNull(profileId);
         this.type = Objects.requireNonNull(type);
         this.status = KycDocumentStatus.SUBMITTED;
     }
 
-    public static KycDocument submit(KycDocumentType type) {
-        return new KycDocument(KycDocumentId.generate(), type);
+    public static KycDocument submit(KycProfileId profileId, KycDocumentType type) {
+        return new KycDocument(KycDocumentId.generate(), profileId, type);
     }
 
     public void markVerified() {
@@ -36,6 +38,10 @@ public class KycDocument {
 
     public KycDocumentId getId() {
         return id;
+    }
+
+    public KycProfileId getProfileId() {
+        return profileId;
     }
 
     public KycDocumentType getType() {

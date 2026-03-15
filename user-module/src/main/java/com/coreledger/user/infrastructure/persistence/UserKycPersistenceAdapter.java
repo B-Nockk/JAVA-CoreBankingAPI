@@ -89,7 +89,8 @@ public class UserKycPersistenceAdapter implements LoadUserKycPort, SaveUserKycPo
     }
 
     private KycDocument toDomainDocument(KycDocumentJpaEntity entity) {
-        KycDocument doc = new KycDocument(KycDocumentId.of(entity.getId()), entity.getType());
+        KycDocument doc = new KycDocument(KycDocumentId.of(entity.getId()), (KycProfileId.of(entity.getKycProfileId())),
+                entity.getType());
         if (entity.getStatus() == KycDocumentStatus.VERIFIED) {
             doc.markVerified();
         } else if (entity.getStatus() == KycDocumentStatus.REJECTED) {
