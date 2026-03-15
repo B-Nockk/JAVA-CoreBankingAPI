@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 
 import com.coreledger.shared.domain.DomainEvent;
+import com.coreledger.shared.domain.EmailAddress;
 import com.coreledger.user.domain.events.UserDeactivated;
 import com.coreledger.user.domain.events.UserFlagged;
 import com.coreledger.user.domain.events.UserReactivated;
@@ -18,7 +19,7 @@ public class User {
     private final String lastName;
     private final String address;
     private final String phone;
-    private final String email;
+    private final EmailAddress email;
     private final LocalDate dateOfBirth;
     private final UserRole userRole;
     private UserStatus status;
@@ -29,7 +30,7 @@ public class User {
             String lastName,
             String address,
             String phone,
-            String email,
+            EmailAddress email,
             LocalDate dateOfBirth,
             UserRole userRole) {
         this.id = Objects.requireNonNull(id);
@@ -48,7 +49,7 @@ public class User {
             String lastName,
             String address,
             String phone,
-            String email,
+            EmailAddress email,
             LocalDate dateOfBirth,
             UserRole userRole) {
         return new User(
@@ -69,7 +70,7 @@ public class User {
             String address,
             UserStatus status,
             String phone,
-            String email,
+            EmailAddress email,
             LocalDate dateOfBirth,
             UserRole userRole) {
         User user = new User(id, firstName, lastName, address, phone, email, dateOfBirth, userRole);
@@ -141,7 +142,7 @@ public class User {
         return phone;
     }
 
-    public String getEmail() {
+    public EmailAddress getEmail() {
         return email;
     }
 
