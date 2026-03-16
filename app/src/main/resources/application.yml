@@ -30,6 +30,7 @@ kafka:
   topics:
     account-events: coreledger.account.events
     transfer-events: coreledger.transfer.events
+    user-events: coreledger.user.events
 
 # -----------------------------------------------------------------------
 # Server

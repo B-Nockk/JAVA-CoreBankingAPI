@@ -59,6 +59,11 @@
                 <artifactId>transfer-module</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.coreledger</groupId>
+                <artifactId>user-module</artifactId>
+                <version>${project.version}</version>
+            </dependency>
 
             <!-- OpenAPI / Swagger -->
             <dependency>

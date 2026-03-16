@@ -37,6 +37,9 @@ public class EventPublisher implements DomainEventPublisher {
     @Value("${kafka.topics.transfer-events}")
     private String transferEventsTopic;
 
+    @Value("${kafka.topics.user-events}")
+    private String userEventsTopic;
+
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
@@ -53,6 +56,11 @@ public class EventPublisher implements DomainEventPublisher {
     @Override
     public void publishTransferEvent(DomainEvent event) {
         publish(transferEventsTopic, event);
+    }
+
+    @Override
+    public void publishUserEvent(DomainEvent event) {
+        publish(userEventsTopic, event);
     }
 
     private void publish(String topic, DomainEvent event) {

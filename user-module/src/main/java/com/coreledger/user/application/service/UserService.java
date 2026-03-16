@@ -1,6 +1,7 @@
 // user-module/src/main/java/com/coreledger/user/application/service/UserService.java
 package com.coreledger.user.application.service;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -11,8 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.coreledger.shared.DomainEventPublisher;
+import com.coreledger.shared.domain.DomainEvent;
 import com.coreledger.shared.domain.EmailAddress;
 import com.coreledger.user.application.port.in.CreateUserUseCase;
+import com.coreledger.user.application.port.in.FlagUserUseCase;
 import com.coreledger.user.application.port.in.GetUserUseCase;
 import com.coreledger.user.application.port.out.LoadUserPort;
 import com.coreledger.user.application.port.out.SaveUserPort;
@@ -36,10 +39,9 @@ import com.coreledger.user.domain.model.UserId;
  * 4. Publish domain event *
  */
 @Service
-public class UserService implements CreateUserUseCase, GetUserUseCase {
+public class UserService implements CreateUserUseCase, GetUserUseCase, FlagUserUseCase {
 
     private static final int MAX_PAGE_SIZE = 100;
-    private static final int DEFAULT_PAGE_SIZE = 20;
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "id");
 
     private final LoadUserPort loadUserPort;
@@ -71,7 +73,7 @@ public class UserService implements CreateUserUseCase, GetUserUseCase {
                 command.userRole());
 
         User saved = saveUserPort.save(user);
-        // TODO:: eventPublisher.
+        // TODO: eventPublisher.publish(new UserCreatedEvent(saved));
 
         return new UserCreatedResult(
                 saved.getId(),
@@ -91,13 +93,19 @@ public class UserService implements CreateUserUseCase, GetUserUseCase {
     @Override
     @Transactional(readOnly = true)
     public Optional<UserDetails> getUserById(UserId userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId cannot be null");
+        }
         return loadUserPort.findById(userId)
-                .map(UserDetails::from); // Use the static factory method here
+                .map(UserDetails::from);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<UserDetails> getUserByEmail(EmailAddress email) {
+        if (email == null) {
+            throw new IllegalArgumentException("email cannot be null");
+        }
         return loadUserPort.findByEmail(email)
                 .map(UserDetails::from);
     }
@@ -136,7 +144,6 @@ public class UserService implements CreateUserUseCase, GetUserUseCase {
 
         // Validate and sanitize the pageable
         Pageable validatedPageable = validateAndSanitizePageable(pageable);
-
         Page<User> userPage = loadUserPort.findAll(validatedPageable);
 
         // Convert domain Users to UserDetails
@@ -172,5 +179,36 @@ public class UserService implements CreateUserUseCase, GetUserUseCase {
         }
 
         return pageable;
+    }
+
+    // ============================================================
+    // FlagUserUseCase
+    // ============================================================
+
+    @Override
+    @Transactional
+    public void flagUser(UserId userId, String reason) {
+        // Guard clauses
+        if (userId == null) {
+            throw new IllegalArgumentException("userId cannot be null");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("reason cannot be null or blank");
+        }
+
+        User user = loadUserPort.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId.toString()));
+
+        var events = user.flag(reason);
+        saveUserPort.save(user);
+
+        // Step 4: Publish domain events
+        publishUserEvents(events); // Even cleaner!
+
+    }
+
+    private void publishUserEvents(List<DomainEvent> events) {
+        eventPublisher.publishAll(events, eventPublisher::publishUserEvent);
+        // events.forEach(eventPublisher::publishUserEvent);
     }
 }

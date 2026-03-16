@@ -13,6 +13,7 @@ import com.coreledger.shared.events.TransferCompleted;
 import com.coreledger.shared.events.TransferFailed;
 import com.coreledger.shared.events.TransferInitiated;
 import com.coreledger.shared.events.TransferReversed;
+import com.coreledger.user.domain.events.UserFlagged;
 
 /**
  * Central registry mapping eventType strings to their Java classes.
@@ -37,6 +38,7 @@ public class EventRegistry {
         register("TransferCompleted", TransferCompleted.class);
         register("TransferFailed", TransferFailed.class);
         register("TransferReversed", TransferReversed.class);
+        register("UserFlagged", UserFlagged.class);
     }
 
     private static void register(String eventType, Class<? extends DomainEvent> clazz) {
