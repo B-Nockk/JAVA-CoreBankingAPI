@@ -1,9 +1,11 @@
+// user-module/src/main/java/com/coreledger/user/infrastructure/persistence/KycDocumentJpaEntity.java
 package com.coreledger.user.infrastructure.persistence;
 
 import java.util.UUID;
 
 import com.coreledger.user.domain.model.KycDocumentStatus;
 import com.coreledger.user.domain.model.KycDocumentType;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

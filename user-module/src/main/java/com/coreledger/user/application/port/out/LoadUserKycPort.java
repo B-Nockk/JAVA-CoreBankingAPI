@@ -7,10 +7,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import com.coreledger.user.domain.model.KycProfile;
+import com.coreledger.user.domain.model.KycProfileId;
 import com.coreledger.user.domain.model.UserId;
 
 public interface LoadUserKycPort {
-    Optional<KycProfile> findByUserId(UserId userId);
+    Optional<KycProfile> loadKycProfile(UserId userId);
+
+    Optional<KycProfile> loadKycProfile(KycProfileId profileId);
+
+    boolean hasKycProfile(UserId userId);
 
     Page<KycProfile> findAll(Pageable pageable);
 }

@@ -1,3 +1,4 @@
+// user-module/src/main/java/com/coreledger/user/domain/model/KycSnapshot.java
 package com.coreledger.user.domain.model;
 
 import java.util.List;
