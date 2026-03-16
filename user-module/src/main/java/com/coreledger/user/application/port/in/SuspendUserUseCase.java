@@ -1,8 +1,8 @@
 // user-module/src/main/java/com/coreledger/user/application/port/in/SuspendUserUseCase.java
 package com.coreledger.user.application.port.in;
 
-import java.util.UUID;
+import com.coreledger.user.domain.model.UserId;
 
 public interface SuspendUserUseCase {
-    void suspendUser(UUID userId, String reason);
+    void suspendUser(UserId userId, String reason);
 }

@@ -15,8 +15,11 @@ import com.coreledger.shared.DomainEventPublisher;
 import com.coreledger.shared.domain.DomainEvent;
 import com.coreledger.shared.domain.EmailAddress;
 import com.coreledger.user.application.port.in.CreateUserUseCase;
+import com.coreledger.user.application.port.in.DeactivateUserUseCase;
 import com.coreledger.user.application.port.in.FlagUserUseCase;
 import com.coreledger.user.application.port.in.GetUserUseCase;
+import com.coreledger.user.application.port.in.ReactivateUserUseCase;
+import com.coreledger.user.application.port.in.SuspendUserUseCase;
 import com.coreledger.user.application.port.out.LoadUserPort;
 import com.coreledger.user.application.port.out.SaveUserPort;
 import com.coreledger.user.domain.exceptions.UserNotFoundException;
@@ -39,7 +42,9 @@ import com.coreledger.user.domain.model.UserId;
  * 4. Publish domain event *
  */
 @Service
-public class UserService implements CreateUserUseCase, GetUserUseCase, FlagUserUseCase {
+public class UserService
+        implements CreateUserUseCase, GetUserUseCase, FlagUserUseCase, SuspendUserUseCase, DeactivateUserUseCase,
+        ReactivateUserUseCase {
 
     private static final int MAX_PAGE_SIZE = 100;
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "id");
@@ -188,13 +193,7 @@ public class UserService implements CreateUserUseCase, GetUserUseCase, FlagUserU
     @Override
     @Transactional
     public void flagUser(UserId userId, String reason) {
-        // Guard clauses
-        if (userId == null) {
-            throw new IllegalArgumentException("userId cannot be null");
-        }
-        if (reason == null || reason.isBlank()) {
-            throw new IllegalArgumentException("reason cannot be null or blank");
-        }
+        validateUserIdAndReason(userId, reason);
 
         User user = loadUserPort.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId.toString()));
@@ -204,7 +203,70 @@ public class UserService implements CreateUserUseCase, GetUserUseCase, FlagUserU
 
         // Step 4: Publish domain events
         publishUserEvents(events); // Even cleaner!
+    }
 
+    // ============================================================
+    // SuspendUserUseCase
+    // ============================================================
+
+    @Override
+    @Transactional
+    public void suspendUser(UserId userId, String reason) {
+        validateUserIdAndReason(userId, reason);
+
+        User user = loadUserPort.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId.toString()));
+
+        var events = user.suspend(reason);
+        saveUserPort.save(user);
+        publishUserEvents(events);
+    }
+
+    // ============================================================
+    // DeactivateUserUseCase
+    // ============================================================
+
+    @Override
+    @Transactional
+    public void deactivateUser(UserId userId, String reason) {
+        validateUserIdAndReason(userId, reason);
+
+        User user = loadUserPort.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId.toString()));
+
+        var events = user.deactivate(reason);
+        saveUserPort.save(user);
+        publishUserEvents(events);
+    }
+
+    // ============================================================
+    // ReactivateUserUseCase
+    // ============================================================
+
+    @Override
+    @Transactional
+    public void reactivateUser(UserId userId, String reason) {
+        validateUserIdAndReason(userId, reason);
+
+        User user = loadUserPort.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId.toString()));
+
+        var events = user.reactivate(reason);
+        saveUserPort.save(user);
+        publishUserEvents(events);
+    }
+
+    /**
+     * Shared guard clause for validating userId and reason.
+     * Keeps event methods DRY while preserving existing semantics.
+     */
+    private void validateUserIdAndReason(UserId userId, String reason) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId cannot be null");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("reason cannot be null or blank");
+        }
     }
 
     private void publishUserEvents(List<DomainEvent> events) {

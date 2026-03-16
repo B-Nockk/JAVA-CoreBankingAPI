@@ -1,8 +1,8 @@
 // user-module/src/main/java/com/coreledger/user/application/port/in/ReactivateUserUseCase.java
 package com.coreledger.user.application.port.in;
 
-import java.util.UUID;
+import com.coreledger.user.domain.model.UserId;
 
 public interface ReactivateUserUseCase {
-    void reactivateUser(UUID userId, String reason);
+    void reactivateUser(UserId userId, String reason);
 }
