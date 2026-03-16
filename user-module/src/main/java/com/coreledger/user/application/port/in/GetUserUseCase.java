@@ -5,6 +5,9 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Pageable;
+
+import com.coreledger.user.domain.model.User;
 import com.coreledger.user.domain.model.UserId;
 import com.coreledger.user.domain.model.UserRole;
 import com.coreledger.user.domain.model.UserStatus;
@@ -32,13 +35,25 @@ public interface GetUserUseCase {
     Optional<UserDetails> getUserByEmail(EmailAddress email);
 
     /**
-     * Retrieves all users in the system with pagination.
+     * Retrieves all users with simple pagination (page number and size only).
+     * Results are sorted by ID ascending by default.
      *
-     * @param page page number (0-based)
-     * @param size page size
-     * @return paginated list of users (never null)
+     * @param page page number (0-based, must be >= 0)
+     * @param size page size (must be between 1 and 100)
+     * @return paginated list of users
+     * @throws IllegalArgumentException if page is negative or size is invalid
      */
     UserPage getAllUsers(int page, int size);
+
+    /**
+     * Retrieves all users with full pagination and sorting capabilities.
+     * This method provides more flexibility for sorting and complex queries.
+     *
+     * @param pageable pagination information (page, size, sort)
+     * @return paginated list of users
+     * @throws IllegalArgumentException if pageable contains invalid values
+     */
+    UserPage getAllUsers(Pageable pageable);
 
     /**
      * User data returned by the use case.
@@ -64,6 +79,20 @@ public interface GetUserUseCase {
             if (lastName == null || lastName.isBlank())
                 throw new IllegalArgumentException("lastName cannot be blank");
             // email validation is handled by EmailAddress class itself!
+        }
+
+        // NEW: Static factory method to create from domain User
+        public static UserDetails from(User user) {
+            return new UserDetails(
+                    user.getId(),
+                    user.getFirstName(),
+                    user.getLastName(),
+                    user.getAddress(),
+                    user.getPhone(),
+                    user.getEmail(),
+                    user.getDateOfBirth(),
+                    user.getUserRole(),
+                    user.getStatus());
         }
 
         public String getFullName() {
@@ -94,6 +123,17 @@ public interface GetUserUseCase {
 
         public static UserPage empty(int page, int size) {
             return new UserPage(List.of(), page, size, 0, 0, true, true);
+        }
+
+        public static UserPage from(org.springframework.data.domain.Page<UserDetails> page) {
+            return new UserPage(
+                    page.getContent(),
+                    page.getNumber(),
+                    page.getSize(),
+                    page.getTotalElements(),
+                    page.getTotalPages(),
+                    page.isFirst(),
+                    page.isLast());
         }
     }
 }
