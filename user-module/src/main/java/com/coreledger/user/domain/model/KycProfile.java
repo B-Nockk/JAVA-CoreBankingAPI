@@ -1,8 +1,11 @@
 // user-module/src/main/java/com/coreledger/user/domain/model/KycProfile.java
 package com.coreledger.user.domain.model;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Aggregate root representing a user's KYC profile.
@@ -80,9 +83,14 @@ public class KycProfile {
      *
      * @param document
      */
-    public void submitDocument(KycDocumentType type) {
+    public KycDocument submitDocument(KycDocumentType type) {
         // documents should be a mutable list internally
         KycDocument document = KycDocument.submit(this.id, type);
+        this.addDocument(document);
+        return document;
+    }
+
+    public void addDocument(KycDocument document) {
         this.documents.add(document);
         this.tier = deriveTier(this.documents);
     }
@@ -146,4 +154,68 @@ public class KycProfile {
         return id;
     }
 
+    // ====================================================
+    // Recalculate TIer
+    // ====================================================
+
+    /**
+     * Forces recalculation of KYC tier based on current documents.
+     * Useful when business rules change or after document deletion.
+     *
+     * @return the new tier after recalculation
+     */
+    public KycTier recalculateTier() {
+        this.tier = deriveTier(this.documents);
+        return this.tier;
+    }
+
+    /**
+     * Removes a document from the profile and recalculates tier.
+     * Used when a document is deleted.
+     *
+     * @param documentId the ID of the document to remove
+     * @return the new tier after removal and recalculation
+     * @throws IllegalArgumentException if document not found
+     */
+    public KycTier removeDocument(KycDocumentId documentId) {
+        boolean removed = this.documents.removeIf(doc -> doc.getId().equals(documentId));
+
+        if (!removed) {
+            throw new IllegalArgumentException("Document not found in profile: " + documentId);
+        }
+
+        return recalculateTier();
+    }
+
+    /**
+     * Batch removes multiple documents and recalculates tier once.
+     * More efficient than removing one by one.
+     *
+     * @param documentIds collection of document IDs to remove
+     * @return the new tier after removal and recalculation
+     */
+    public KycTier removeDocuments(Collection<KycDocumentId> documentIds) {
+        this.documents.removeIf(doc -> documentIds.contains(doc.getId()));
+        return recalculateTier();
+    }
+
+    /**
+     * Checks if profile has any verified documents of a specific type.
+     * Useful for validation rules.
+     */
+    public boolean hasVerifiedDocument(KycDocumentType type) {
+        return documents.stream()
+                .anyMatch(doc -> doc.getType() == type && doc.isVerified());
+    }
+
+    /**
+     * Gets count of documents by status.
+     * Useful for reporting and validation.
+     */
+    public Map<KycDocumentStatus, Long> getDocumentCountByStatus() {
+        return documents.stream()
+                .collect(Collectors.groupingBy(
+                        KycDocument::getStatus,
+                        Collectors.counting()));
+    }
 }

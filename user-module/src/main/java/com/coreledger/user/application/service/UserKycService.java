@@ -23,6 +23,7 @@ import com.coreledger.user.application.port.out.LoadUserKycPort;
 import com.coreledger.user.application.port.out.LoadUserPort;
 import com.coreledger.user.application.port.out.SaveKycDocumentPort;
 import com.coreledger.user.application.port.out.SaveUserKycPort;
+import com.coreledger.user.domain.events.KycDocumentDeleted;
 import com.coreledger.user.domain.events.KycDocumentRejected;
 import com.coreledger.user.domain.events.KycDocumentUploaded;
 import com.coreledger.user.domain.events.KycDocumentVerified;
@@ -32,6 +33,7 @@ import com.coreledger.user.domain.exceptions.UserNotFoundException;
 import com.coreledger.user.domain.model.KycDocument;
 import com.coreledger.user.domain.model.KycDocumentBinary;
 import com.coreledger.user.domain.model.KycProfile;
+import com.coreledger.user.domain.model.KycProfileId;
 import com.coreledger.user.domain.model.KycSnapshot;
 import com.coreledger.user.domain.model.KycTier;
 import com.coreledger.user.domain.model.User;
@@ -132,26 +134,22 @@ public class UserKycService implements
                 .orElseGet(() -> createKycProfile(command.userId()));
 
         // Step 3: Create document domain entity
-        KycDocument document = KycDocument.submit(profile.getId(), command.documentType());
+        KycDocument document = profile.submitDocument(command.documentType()); // Creates and adds document internally
 
-        // Step 4: Save document (metadata + binary)
+        // Step 4: Add document to profile and recalculate tier
         KycDocument savedDocument = saveKycDocumentPort.save(
                 document,
                 command.fileContent(),
                 command.filename());
 
-        // Step 5: Add document to profile and recalculate tier
-        profile.submitDocument(command.documentType()); // This adds to profile's internal list
-        KycTier newTier = profile.getTier();
-
-        // Step 6: Save updated profile
+        // Step 5: Save updated profile
         saveUserKycPort.update(profile);
 
-        // Step 7: Publish domain events (document uploaded event would be nice to have)
+        // Step 6: Publish domain events (document uploaded event would be nice to have)
         DomainEvent event = new KycDocumentUploaded(savedDocument.getId(), user.getId(), savedDocument.getType());
         eventPublisher.publish(event, eventPublisher::publishUserEvent);
 
-        return new AddDocumentResult(savedDocument.getId(), getStoragePath(savedDocument), newTier);
+        return new AddDocumentResult(savedDocument.getId(), getStoragePath(savedDocument), profile.getTier());
     }
 
     private KycProfile createKycProfile(UserId userId) {
@@ -190,7 +188,6 @@ public class UserKycService implements
 
         // Step 3: Call domain behavior
         profile.verifyDocument(command.documentId());
-        document.markVerified();
 
         // Step 4: Persist changes
         saveUserKycPort.update(profile);
@@ -226,6 +223,8 @@ public class UserKycService implements
                 .orElseThrow(() -> new RuntimeException("Document not found: " + command.documentId()));
 
         if (!document.getProfileId().equals(profile.getId())) {
+            // TODO:: Should this message be returned or a more generic one while this is
+            // logged.
             throw new RuntimeException("Document does not belong to user's profile");
         }
 
@@ -308,7 +307,7 @@ public class UserKycService implements
         KycProfile profile = loadUserKycPort.loadKycProfile(command.userId())
                 .orElseThrow(() -> new RuntimeException("KYC profile not found for user: " + command.userId()));
 
-        // Note: This bypasses normal domain rules - should be restricted and audited
+        // FIXME: This bypasses normal domain rules - should be restricted and audited
         // Ideally, profile would have a method like profile.overrideTier(newTier,
         // reason)
         // For now, we'll just update and publish an event
@@ -339,19 +338,36 @@ public class UserKycService implements
         KycProfile profile = loadUserKycPort.loadKycProfile(userId)
                 .orElseThrow(() -> new RuntimeException("KYC profile not found for user: " + userId));
 
-        // Trigger recalculation by submitting a dummy document? No.
-        // Better to have a method on profile to force recalculation
-        // For now, let's assume profile has a recalculateTier() method
+        // Recalculate tier based on current documents
+        KycTier newTier = profile.recalculateTier();
 
-        // profile.recalculateTier();
-
+        // Save updated profile
         saveUserKycPort.update(profile);
 
-        eventPublisher.publish(
-                new KycTierUpdated(profile.getId(), userId, profile.getTier()),
-                eventPublisher::publishUserEvent);
+        // Publish event
+        DomainEvent event = new KycTierUpdated(profile.getId(), userId, newTier);
+        eventPublisher.publish(event, eventPublisher::publishUserEvent);
 
-        return profile.getTier();
+        return newTier;
+    }
+
+    // Overload that accepts profile ID
+    @Transactional
+    public KycTier recalculateTier(KycProfileId profileId) {
+        if (profileId == null) {
+            throw new IllegalArgumentException("profileId cannot be null");
+        }
+
+        KycProfile profile = loadUserKycPort.loadKycProfile(profileId)
+                .orElseThrow(() -> new RuntimeException("KYC profile not found: " + profileId));
+
+        KycTier newTier = profile.recalculateTier();
+        saveUserKycPort.update(profile);
+
+        DomainEvent event = new KycTierUpdated(profileId, profile.getUserId(), newTier);
+        eventPublisher.publish(event, eventPublisher::publishUserEvent);
+
+        return newTier;
     }
 
     // ============================================================
@@ -379,16 +395,18 @@ public class UserKycService implements
         // Delete document (metadata + binary)
         deleteKycPort.deleteDocument(command.documentId());
 
-        // Recalculate profile tier after document deletion
-        // Need a method on profile to handle document removal
-        // profile.removeDocument(command.documentId());
+        // Remove from profile and recalculate tier
+        KycTier newTier = profile.removeDocument(command.documentId());
 
-        // For now, we'll just save the profile as-is
+        // Save updated profile
         saveUserKycPort.update(profile);
 
-        // Publish event
-        // eventPublisher.publish(new KycDocumentDeleted(...),
-        // eventPublisher::publishUserEvent);
+        // Publish events
+        DomainEvent deletedEvent = new KycDocumentDeleted(command.documentId(), command.userId(), command.reason());
+        DomainEvent tierEvent = new KycTierUpdated(profile.getId(), command.userId(), newTier);
+
+        eventPublisher.publish(deletedEvent, eventPublisher::publishUserEvent);
+        eventPublisher.publish(tierEvent, eventPublisher::publishUserEvent);
     }
 
     // ============================================================
@@ -410,8 +428,10 @@ public class UserKycService implements
         deleteKycPort.deleteProfile(profile.getId());
 
         // Publish event
-        eventPublisher.publish(
-                new KycProfileDeleted(profile.getId(), command.userId(), profile.getTier(), command.reason()),
-                eventPublisher::publishUserEvent);
+        DomainEvent event = new KycProfileDeleted(profile.getId(), command.userId(), profile.getTier(),
+                command.reason());
+        eventPublisher.publish(event, eventPublisher::publishUserEvent);
+
+        // Note: No tier event needed since profile is gone
     }
 }

@@ -13,7 +13,17 @@ import com.coreledger.shared.events.TransferCompleted;
 import com.coreledger.shared.events.TransferFailed;
 import com.coreledger.shared.events.TransferInitiated;
 import com.coreledger.shared.events.TransferReversed;
+import com.coreledger.user.domain.events.KycDocumentRejected;
+import com.coreledger.user.domain.events.KycDocumentUploaded;
+import com.coreledger.user.domain.events.KycDocumentVerified;
+import com.coreledger.user.domain.events.KycProfileDeleted;
+import com.coreledger.user.domain.events.KycTierUpdated;
+import com.coreledger.user.domain.events.UserCreated;
+import com.coreledger.user.domain.events.UserDeactivated;
 import com.coreledger.user.domain.events.UserFlagged;
+import com.coreledger.user.domain.events.UserReactivated;
+import com.coreledger.user.domain.events.UserSuspended;
+import com.coreledger.user.domain.model.KycDocument;
 
 /**
  * Central registry mapping eventType strings to their Java classes.
@@ -38,7 +48,24 @@ public class EventRegistry {
         register("TransferCompleted", TransferCompleted.class);
         register("TransferFailed", TransferFailed.class);
         register("TransferReversed", TransferReversed.class);
+
+        // ==================================================
+        // User
+        // ==================================================
+        register("UserCreated", UserCreated.class);
+        register("UserDeactivated", UserDeactivated.class);
         register("UserFlagged", UserFlagged.class);
+        register("UserReactivated", UserReactivated.class);
+        register("UserSuspended", UserSuspended.class);
+
+        // ==================================================
+        // Kyc
+        // ==================================================
+        register("KycDocumentRejected", KycDocumentRejected.class);
+        register("KycDocumentUploaded", KycDocumentUploaded.class);
+        register("KycDocumentVerified", KycDocumentVerified.class);
+        register("KycProfileDeleted", KycProfileDeleted.class);
+        register("KycTierUpdated", KycTierUpdated.class);
     }
 
     private static void register(String eventType, Class<? extends DomainEvent> clazz) {
