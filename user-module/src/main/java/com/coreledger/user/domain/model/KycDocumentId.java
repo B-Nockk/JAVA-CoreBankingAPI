@@ -23,6 +23,10 @@ public final class KycDocumentId {
         return new KycDocumentId(value);
     }
 
+    public static KycDocumentId of(String value) {
+        return new KycDocumentId(UUID.fromString(value));
+    }
+
     public UUID getValue() {
         return value;
     }
