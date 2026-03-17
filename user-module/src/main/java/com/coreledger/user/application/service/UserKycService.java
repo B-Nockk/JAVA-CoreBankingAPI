@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.coreledger.shared.DomainEventPublisher;
+import com.coreledger.shared.domain.DomainEvent;
 import com.coreledger.user.application.port.in.AddKycDocumentUseCase;
 import com.coreledger.user.application.port.in.DeleteKycDocumentUseCase;
 import com.coreledger.user.application.port.in.DeleteKycProfileUseCase;
@@ -23,6 +24,7 @@ import com.coreledger.user.application.port.out.LoadUserPort;
 import com.coreledger.user.application.port.out.SaveKycDocumentPort;
 import com.coreledger.user.application.port.out.SaveUserKycPort;
 import com.coreledger.user.domain.events.KycDocumentRejected;
+import com.coreledger.user.domain.events.KycDocumentUploaded;
 import com.coreledger.user.domain.events.KycDocumentVerified;
 import com.coreledger.user.domain.events.KycProfileDeleted;
 import com.coreledger.user.domain.events.KycTierUpdated;
@@ -146,8 +148,8 @@ public class UserKycService implements
         saveUserKycPort.update(profile);
 
         // Step 7: Publish domain events (document uploaded event would be nice to have)
-        // eventPublisher.publishAll(List.of(new KycDocumentUploaded(...)),
-        // eventPublisher::publishUserEvent);
+        DomainEvent event = new KycDocumentUploaded(savedDocument.getId(), user.getId(), savedDocument.getType());
+        eventPublisher.publish(event, eventPublisher::publishUserEvent);
 
         return new AddDocumentResult(savedDocument.getId(), getStoragePath(savedDocument), newTier);
     }
