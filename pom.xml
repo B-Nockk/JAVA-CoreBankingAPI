@@ -21,6 +21,7 @@
 
     <modules>
         <module>shared-kernel</module>
+        <module>auth-module</module>
         <module>account-module</module>
         <module>transfer-module</module>
         <module>user-module</module>
@@ -47,6 +48,11 @@
             <dependency>
                 <groupId>com.coreledger</groupId>
                 <artifactId>shared-kernel</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.coreledger</groupId>
+                <artifactId>auth-module</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

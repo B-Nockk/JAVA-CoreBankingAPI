@@ -25,7 +25,7 @@ CoreLedger is a production-grade core banking REST API demonstrating enterprise 
 
 ### Module Dependencies
 
-```
+```txt
 app (Spring Boot entry point)
 ├── account-module
 ├── transfer-module
@@ -35,7 +35,7 @@ app (Spring Boot entry point)
 
 ### Package Structure (per bounded context)
 
-```
+```txt
 com.coreledger.<module>/
 ├── domain/
 │   ├── model/              # Aggregate roots, entities, value objects
@@ -89,24 +89,84 @@ com.coreledger.<module>/
 
 **Account Aggregate Root**:
 
-- `accountNumber`: String (business ID)
-- `balance`: BigDecimal (derived from ledger)
+- `id`: AccountId (UUID, internal identifier)
+- `accountNumber`: String (human-facing business ID)
+- `ownerName`: String
+- `currency`: Currency (e.g., NGN, USD)
 - `status`: enum (ACTIVE, FROZEN, CLOSED)
-- `version`: Integer (optimistic locking)
+- `transactions`: List<Transaction> (append-only ledger)
+- `audit`: AuditMetadata (createdAt, createdBy)
 
 **Account Behaviors**:
 
-- `deposit(amount)` — validates account active, amount > 0, adds to balance
-- `withdraw(amount, minimumBalance)` — validates funds available after, prevents going below minimum
-- Factory method `Account.open(accountNumber, initialDeposit)` — creates new account with version=0
+- `open(accountNumber, ownerName, currency, openedBy)` — factory method, creates new account with empty transactions
+- `deposit(amount, reference, initiatedBy)` — creates DEPOSIT transaction, updates balance
+- `withdraw(amount, reference, initiatedBy)` — creates WITHDRAWAL transaction, validates sufficient funds
+- `creditTransfer(amount, transferId, initiatedBy)` — creates TRANSFER_IN transaction
+- `debitTransfer(amount, transferId, initiatedBy)` — creates TRANSFER_OUT transaction
+
+**Derived Balance**:
+
+- Computed from the last transaction's `balanceAfter` field
+- If no transactions exist, balance is zero
+- Never stored directly; always derived on read
 
 **Status Transitions**:
 
-```
-ACTIVE → FROZEN (manual freeze)
-ACTIVE → CLOSED (manual close)
+```txt
+ACTIVE → FROZEN (manual freeze — credits still allowed)
+ACTIVE → CLOSED (manual close — no credits or debits)
 FROZEN → ACTIVE (unfreeze)
 ```
+
+#### Append-Only Transaction Ledger (✅ Fully Implemented)
+
+**Transaction Entity** (immutable domain object):
+
+- `transactionId`: String (UUID)
+- `accountId`: AccountId
+- `type`: enum (DEPOSIT, WITHDRAWAL, TRANSFER_IN, TRANSFER_OUT)
+- `amount`: Money (currency-aware)
+- `balanceAfter`: Money (snapshot of account balance after this transaction)
+- `reference`: String (transfer ID, deposit ref, etc. — links transactions across aggregates)
+- `audit`: AuditMetadata (createdAt, createdBy)
+
+**Structural Immutability**:
+
+- All fields `final`, set only at construction
+- No setters anywhere
+- Only package-private factory methods within Account (e.g., `Transaction.deposit(...)`, `Transaction.transferIn(...)`)
+- External code **cannot create, modify, or delete transactions**
+
+**Database Schema** (enforces immutability):
+
+```sql
+CREATE TABLE transactions (
+  id UUID PRIMARY KEY,
+  account_id UUID NOT NULL (UPDATABLE=FALSE),
+  type VARCHAR(20) NOT NULL (UPDATABLE=FALSE),
+  amount DECIMAL(19,4) NOT NULL (UPDATABLE=FALSE),
+  balance_after DECIMAL(19,4) NOT NULL (UPDATABLE=FALSE),
+  currency VARCHAR(3) NOT NULL (UPDATABLE=FALSE),
+  reference VARCHAR NOT NULL (UPDATABLE=FALSE),
+  created_at TIMESTAMP NOT NULL (UPDATABLE=FALSE),
+  created_by VARCHAR NOT NULL (UPDATABLE=FALSE),
+
+  FOREIGN KEY (account_id) REFERENCES accounts(id),
+  INDEX idx_transactions_account_id (account_id),
+  INDEX idx_transactions_created_at (created_at)
+);
+-- ⚠️ NO UPDATE or DELETE permissions on this table
+-- ✅ Only INSERT allowed (append-only ledger)
+```
+
+**Benefits of This Pattern**:
+
+1. **Auditability**: Every balance change is permanently recorded with timestamp + actor
+2. **Point-in-time calculation**: Can determine balance at any historical moment by filtering transactions
+3. **No race conditions**: Adding transactions is atomic; no UPDATE contention
+4. **Compliance-ready**: Immutable ledger satisfies regulatory requirements (financial record retention)
+5. **Integrity checks**: If `balanceAfter(tx[n])` ≠ sum of all prior transactions, system is corrupted (data integrity issue)
 
 #### Use Cases Implemented
 
@@ -142,108 +202,242 @@ FROZEN → ACTIVE (unfreeze)
 - Persistence: [account-module/src/main/java/com/coreledger/account/infrastructure/persistence/](account-module/src/main/java/com/coreledger/account/infrastructure/persistence/)
 - Web: [account-module/src/main/java/com/coreledger/account/infrastructure/web/](account-module/src/main/java/com/coreledger/account/infrastructure/web/)
 
-#### Identified Gaps
+#### How Transaction Ledger Persists
 
-- **NO transaction ledger table** — Balance is currently stored directly; should derive from immutable ledger rows
-- **NO account status endpoints** — Freeze/unfreeze/close operations missing
-- **NO balance history** — Cannot audit historical balance calculations
-- **NO minimum balance enforcement** — Transfers check it, but account creation doesn't
+**Persistence Adapter** ([AccountPersistenceAdapter.java](account-module/src/main/java/com/coreledger/account/infrastructure/persistence/AccountPersistenceAdapter.java)):
+
+- Loads Account + all related transactions in one query (`findByAccountNumberWithTransactions`)
+- Maps `TransactionJpaEntity` rows to domain `Transaction` objects
+- When saving Account, cascades all new transactions to JPA, which INSERTs them
+- Existing transactions are never UPDATEd (JPA respects `updatable=false`)
+
+**Related Files**:
+
+- Domain: [account-module/src/main/java/com/coreledger/account/domain/model/Transaction.java](account-module/src/main/java/com/coreledger/account/domain/model/Transaction.java)
+- Domain: [account-module/src/main/java/com/coreledger/account/domain/model/Account.java](account-module/src/main/java/com/coreledger/account/domain/model/Account.java)
+- JPA: [account-module/src/main/java/com/coreledger/account/infrastructure/persistence/TransactionJpaEntity.java](account-module/src/main/java/com/coreledger/account/infrastructure/persistence/TransactionJpaEntity.java)
+- Adapter: [account-module/src/main/java/com/coreledger/account/infrastructure/persistence/AccountPersistenceAdapter.java](account-module/src/main/java/com/coreledger/account/infrastructure/persistence/AccountPersistenceAdapter.java)
+
+#### Identified Gaps (Account)
+
+- **NO account status endpoints** — Freeze/unfreeze/close operations exist in domain but not exposed via REST
+- **NO transaction query/export API** — Cannot retrieve transaction history via endpoint
+- **NO minimum balance enforcement at creation** — Only enforced during transfers
 - **NO account type/product mapping** — All accounts treated identically (checking vs savings vs investment)
-- **NO overdraft policy** — Cannot configure per-account or per-account-type
+- **NO overdraft policy** — Cannot configure per-account or per-account-type limits
 - **Sparse validation on account number** — Should validate format (length, chars, IBAN?)
+- **NO transaction reconciliation** — Cannot detect ledger corruption (balanceAfter mismatch)
 
 ---
 
 ### 3. **transfer-module** — Inter-Account Movement & State Machine
 
-**Responsibility**: Transfer orchestration, status lifecycle, account ledger appends
-**Core Pattern**: Event sourcing via append-only `transfer_ledger` table; transfers never UPDATE, only INSERT new versions
+**Responsibility**: Transfer orchestration, status lifecycle, inter-module event choreography
+**Core Pattern**: Event-driven choreography between transfer and account modules; transfers and accounts publish events; each module reacts
 
 #### Domain Model
 
 **Transfer Aggregate Root**:
 
-- `transferId`: String / UUID (business ID)
+- `id`: TransferId (UUID)
 - `sourceAccountNumber`: String
-- `targetAccountNumber`: String
-- `amount`: BigDecimal
-- `status`: enum (PENDING → COMPLETED/FAILED)
+- `destinationAccountNumber`: String
+- `amount`: Money (currency-aware)
+- `status`: enum (INITIATED → DEBITED → COMPLETED/FAILED → REVERSED)
 - `createdAt`: Instant
-- `completedAt`: Instant (null until completion)
-- `version`: int (incremented on each state transition)
+- `audit`: AuditMetadata
+- `failureReason`: String (nullable)
 
-**Transfer Behaviors**:
+**Transfer State Machine**:
 
-- Factory `Transfer.initiate(...)` — creates PENDING transfer with version=0
-- `complete(now)` — transitions PENDING → COMPLETED, increments version
-- `fail()` — transitions PENDING → FAILED, increments version
-- Rehydration constructor `Transfer.rehydrate(...)` — reconstructs from ledger row
+```
+Initiated
+    ↓
+  (publish TransferInitiated)
+    ↓
+  [Account module deducts from source]
+    ↓
+Debited
+    ↓
+  (MoneyWithdrawn event received)
+    ↓
+  [Account module adds to destination]
+    ↓
+Completed
+    ↓
+  (publish TransferCompleted)
+    ↓
+(later, if reversal requested)
+    ↓
+Reversed
+```
+
+**Transfer Behaviors** (domain model):
+
+- Factory `Transfer.initiate(source, dest, amount, initiatedBy)` — creates INITIATED transfer
+- `markDebited()` — transitions INITIATED → DEBITED
+- `markCompleted()` — transitions DEBITED → COMPLETED (calls `isDebited()` check)
+- `markFailed(reason)` — transitions any state → FAILED
+- `markReversed()` — transitions any state → REVERSED
 
 **Enforced Rules**:
 
 ```
 1. Cannot transfer to same account
 2. Amount must be > 0
-3. Only PENDING transfers can complete or fail
-4. Sender must have sufficient balance
-5. Sender balance cannot go below minimum
+3. Source and destination must use same currency
+4. Only INITIATED transfers can be debited
+5. Only DEBITED/INITIATED transfers can be completed
+6. Sender must have sufficient balance
+7. Sender balance cannot go below minimum
 ```
+
+#### Event Choreography Flow (✅ Fully Implemented)
+
+**Step-by-Step Execution**:
+
+```
+┌─────────────────────── Transfer Module ───────────────────────┐
+│                                                                │
+│  TransferService.execute(command)                             │
+│  ├─ Verify both accounts exist & active                       │
+│  ├─ Verify same currency                                      │
+│  ├─ Create Transfer(INITIATED)                                │
+│  ├─ Save transfer to DB                                       │
+│  └─ publishTransferEvent(TransferInitiated)  ──────┐          │
+│                                                     │          │
+└─────────────────────────────────────────────────────────────────┘
+                                                      │
+                ┌─────────────────────────────────────┘
+                │
+┌───────── Account Module (Kafka Listener) ──────────┐
+│                │                                    │
+│                ↓                                    │
+│ TransferEventHandler.onTransferEvent()             │
+│                                                    │
+│ handleTransferInitiated(TransferInitiated e):      │
+│   ├─ Load source account                          │
+│   ├─ source.debitTransfer(amount, transferId)     │
+│   │   └─ Creates TRANSFER_OUT transaction         │
+│   │   └─ Updates balance (immutable ledger)       │
+│   ├─ Save source account (cascades transaction)  │
+│   ├─ publishAccountEvent(MoneyWithdrawn)  ──┐    │
+│   │                                          │    │
+│   ├─ Load destination account                │    │
+│   ├─ dest.creditTransfer(amount, transferId) │    │
+│   │   └─ Creates TRANSFER_IN transaction     │    │
+│   │   └─ Updates balance (immutable ledger)  │    │
+│   ├─ Save destination account               │    │
+│   └─ publishAccountEvent(MoneyDeposited)────┼─┐  │
+│                                              │ │  │
+└──────────────────────────────────────────────────┼──┘
+                                               │  │
+           ┌───────────────────────────────────┘  │
+           │                                      │
+┌─────── Transfer Module (Kafka Listener) ───────┐│
+│          │                                     ││
+│          ↓                                     ││
+│ TransferService.onAccountEvent()              ││
+│                                               ││
+│ handleMoneyWithdrawn(MoneyWithdrawn e):       ││
+│   ├─ Find transfer by reference               ││
+│   ├─ transfer.markDebited()                   ││
+│   └─ Save transfer                            ││
+│                                               ││
+│ handleMoneyDeposited(MoneyDeposited e):    ←──┘│
+│   ├─ Find transfer by reference               │
+│   ├─ transfer.markCompleted()                 │
+│   ├─ Save transfer                            │
+│   └─ publishTransferEvent(TransferCompleted)  │
+│                                               │
+└───────────────────────────────────────────────┘
+```
+
+**Key Design Points**:
+
+1. **Decoupled modules**: Transfer doesn't know about Account internals; Account doesn't call Transfer directly
+2. **Event-driven**: Changes published as events; listeners react asynchronously
+3. **Idempotency**: Multiple deliveries of same event are safe (transfer status checked before state change)
+4. **Failures visible**: If account debit fails, transfer remains INITIATED; admin can investigate
+5. **Audit trail**: Every state change is recorded; events logged with timestamps
 
 #### Use Cases Implemented
 
-| Use Case                       | Port Interface            | Status          |
-| ------------------------------ | ------------------------- | --------------- |
-| Initiate transfer (internal)   | `InitiateTransferUseCase` | ✅ Implemented  |
-| Get transfer status            | `GetTransferUseCase`      | ❌ Missing impl |
-| List transfers by account      | Not scoped                | ❌ Missing      |
-| Cancel transfer (PENDING only) | Not scoped                | ❌ Gap          |
-| Reverse transfer (COMPLETED)   | Not scoped                | ❌ Gap          |
-| Schedule transfer (future)     | Not scoped                | ❌ Gap          |
+| Use Case                     | Port Interface            | Status                                     |
+| ---------------------------- | ------------------------- | ------------------------------------------ |
+| Initiate transfer (internal) | `InitiateTransferUseCase` | ✅ Implemented (event-driven choreography) |
+| Get transfer status          | `GetTransferUseCase`      | ✅ Implemented                             |
+| List transfers by account    | Not scoped                | ❌ Missing endpoint                        |
+| Cancel transfer (INITIATED)  | Not scoped                | ❌ Gap                                     |
+| Reverse transfer (COMPLETED) | Not scoped                | ✅ Partially (via TransferReversed event)  |
+| Schedule transfer (future)   | Not scoped                | ❌ Gap                                     |
+| Batch transfer (one-to-many) | Not scoped                | ❌ Gap                                     |
+
+#### Event Choreography Implementation
+
+**Components** ([TransferService.java](transfer-module/src/main/java/com/coreledger/transfer/application/service/TransferService.java)):
+
+| Role                 | Class                                 | Method                                            | Kafka Topic                                                      | Status |
+| -------------------- | ------------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------- | ------ |
+| **Initiator**        | TransferService                       | `execute(command)`                                | Publishes `TransferInitiated` to `transfer-events`               | ✅     |
+| **Listener**         | TransferEventHandler (account-module) | `onTransferEvent()` → `handleTransferInitiated()` | Consumes from `transfer-events`                                  | ✅     |
+| **Account Updates**  | Account                               | `debitTransfer()`, `creditTransfer()`             | Publishes `MoneyWithdrawn`, `MoneyDeposited` to `account-events` | ✅     |
+| **Status Updater**   | TransferService                       | `onAccountEvent()` → `handleMoneyWithdrawn()`     | Consumes from `account-events`                                   | ✅     |
+| **State Transition** | TransferService                       | `onAccountEvent()` → `handleMoneyDeposited()`     | Consumes from `account-events`, publishes `TransferCompleted`    | ✅     |
+| **Reversal Handler** | TransferService                       | `handleTransferReversed()`                        | Consumes from `account-events`                                   | ✅     |
+
+**Orchestration Flow Summary**:
+
+1. **Client initiates** via `TransferService.execute()`
+2. **Transfer created** with INITIATED status
+3. **Account listeners react** via Kafka → debit/credit accounts → transactions recorded
+4. **Transfer status updated** back to DEBITED/COMPLETED via incoming account events
+5. **TransferCompleted event** published for any subscribers
 
 #### Persistence Layer
 
 **JPA Entity**: `TransferJpaEntity`
 
-- Append-only pattern: `@UniqueConstraint(columnNames = {"transferId", "version"})` prevents duplicate versions
-- No UPDATE operations — each state change is a new INSERT
-- Table: `transfer_ledger`
-- Query: `findTopByTransferIdOrderByVersionDesc()` gets latest version
+- Status field: Simple UPDATE (not append-only like Account transactions)
+- One row per transfer (not versioned rows)
+- Table: `transfer`
+- Query: Simple ID lookup returns current Transfer state
 
-**Repository Adapter**: `TransferPersistenceAdapter`
+**Transfer Domain Model**:
 
-- Implements `TransferRepositoryPort`
-- Uses `@Transactional(propagation = Propagation.REQUIRES_NEW)` to isolate ledger appends from parent transaction
-- Converts domain `Transfer` to `TransferJpaEntity`
+- Immutable by design (all fields final)
+- State transitions create new Transfer instances: `transfer.markCompleted()` returns new Transfer
+- Domain enforces: transfer "completed from INITIATED or DEBITED" state
 
-**Flow in InitiateTransferUseCase**:
+**Differences from Account Ledger**:
 
-1. Create PENDING transfer, append to ledger
-2. Load both accounts from persistence
-3. Execute domain logic: sender.withdraw(), recipient.deposit()
-4. Save both accounts (via optimistic locking)
-5. Transition transfer → COMPLETED, append to ledger
-6. On exception: Transition → FAILED, append to ledger (catches race conditions)
+- **Account**: Every transaction is recorded as a ledger row (append-only, immutable schema)
+- **Transfer**: Transfer state is overwritten (UPDATE permitted); only one row per transfer
+- **Reason**: Transfer is a short-lived aggregate (INITIATED → COMPLETED in seconds); Account is long-lived (month/year of history)
 
 **Related Files**:
 
-- Domain: [transfer-module/src/main/java/com/coreledger/transfer/domain/Transfer.java](transfer-module/src/main/java/com/coreledger/transfer/domain/Transfer.java)
-- Application: [transfer-module/src/main/java/com/coreledger/transfer/application/TransferService.java](transfer-module/src/main/java/com/coreledger/transfer/application/TransferService.java)
+- Domain: [transfer-module/src/main/java/com/coreledger/transfer/domain/model/Transfer.java](transfer-module/src/main/java/com/coreledger/transfer/domain/model/Transfer.java)
+- Application: [transfer-module/src/main/java/com/coreledger/transfer/application/service/TransferService.java](transfer-module/src/main/java/com/coreledger/transfer/application/service/TransferService.java)
+- Event Handler: [account-module/src/main/java/com/coreledger/account/application/service/TransferEventHandler.java](account-module/src/main/java/com/coreledger/account/application/service/TransferEventHandler.java)
 - Persistence: [transfer-module/src/main/java/com/coreledger/transfer/infrastructure/persistence/](transfer-module/src/main/java/com/coreledger/transfer/infrastructure/persistence/)
 - Web: [transfer-module/src/main/java/com/coreledger/transfer/infrastructure/web/](transfer-module/src/main/java/com/coreledger/transfer/infrastructure/web/)
+- Kafka Config: [app/src/main/java/com/coreledger/config/KafkaConsumerConfig.java](app/src/main/java/com/coreledger/config/KafkaConsumerConfig.java)
 
 #### Identified Gaps
 
+- **NO endpoint to list transfers by account** — `GetTransferUseCase` implemented but not exposed via REST
 - **NO inter-bank transfers** — Only internal (same bank) transfers supported
-- **NO idempotency keys** — Duplicate requests could create duplicate transfers; missing tracking of idempotent request IDs
-- **NO transfer compensation/reversal** — Once COMPLETED, cannot reverse; no refund mechanism
+- **NO idempotency keys** — Duplicate requests create duplicate transfers; missing request deduplication
 - **NO transfer fee calculation** — Fixed amounts only, no percentage-based or tiered fees
 - **NO scheduled transfers** — All transfers execute immediately
-- **NO batch transfers** — Cannot send one-to-many or many-to-many
-- **NO transfer limits per account** — Missing daily/monthly transfer caps
+- **NO batch transfers** — Cannot send one-to-many or many-to-many in single request
+- **NO transfer limits per account** — Missing daily/monthly transfer caps or velocity checks
 - **NO circuit breaker for account service** — If account loads fail, transfer fails hard; should have fallback
-- **NO Dead Letter Queue (DLQ) setup** — Kafka failures not captured for retry/investigation
-- **NO transaction audit trail** — Cannot trace who initiated transfer (missing user context)
-- **Missing source/dest account validation** — No check if accounts exist before appending PENDING
+- **NO Dead Letter Queue (DLQ) setup** — Kafka failures don't get captured for retry/investigation
+- **NO explicit user context in transfer** — Cannot track which real person initiated transfer (only system user ID)
+- **NO transfer reconciliation** — Cannot detect stuck/orphaned transfers (INITIATED forever)
+- **Transfer state not truly append-only** — Unlike Account transactions, Transfer rows are UPDATEd (acceptable for short-lived state, but loses full audit trail)
 
 ---
 
@@ -602,7 +796,6 @@ eventPublisher.publish(event, eventPublisher::publishUserEvent);
 
 | Gap                                              | Impact                                        | Estimated Work |
 | ------------------------------------------------ | --------------------------------------------- | -------------- |
-| Append-only transaction ledger for accounts      | Cannot audit balance calculation history      | 2-3 days       |
 | Optimistic locking validation errors not handled | Race conditions silent/unhandled              | 1 day          |
 | Transfer reversal/refund mechanism               | Cannot undo transfers; critical for disputes  | 2-3 days       |
 | Idempotency keys for transfers                   | Duplicate requests create duplicate transfers | 1 day          |
