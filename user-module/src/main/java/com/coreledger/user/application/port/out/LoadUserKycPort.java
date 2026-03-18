@@ -6,9 +6,9 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import com.coreledger.shared.domain.UserId;
 import com.coreledger.user.domain.model.KycProfile;
 import com.coreledger.user.domain.model.KycProfileId;
-import com.coreledger.user.domain.model.UserId;
 
 public interface LoadUserKycPort {
     Optional<KycProfile> loadKycProfile(UserId userId);

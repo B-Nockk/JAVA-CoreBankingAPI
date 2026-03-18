@@ -4,8 +4,8 @@ package com.coreledger.user.domain.events;
 import java.time.Instant;
 
 import com.coreledger.shared.domain.DomainEvent;
+import com.coreledger.shared.domain.UserId;
 import com.coreledger.user.domain.model.KycDocumentId;
-import com.coreledger.user.domain.model.UserId;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 

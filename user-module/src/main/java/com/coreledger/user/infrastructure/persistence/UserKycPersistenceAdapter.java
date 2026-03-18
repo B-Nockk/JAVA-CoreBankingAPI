@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.coreledger.shared.domain.UserId;
 import com.coreledger.shared.storage.DocumentStorageService;
 import com.coreledger.user.application.port.out.DeleteKycPort;
 import com.coreledger.user.application.port.out.LoadUserKycPort;
@@ -19,7 +20,6 @@ import com.coreledger.user.domain.model.KycDocumentId;
 import com.coreledger.user.domain.model.KycDocumentStatus;
 import com.coreledger.user.domain.model.KycProfile;
 import com.coreledger.user.domain.model.KycProfileId;
-import com.coreledger.user.domain.model.UserId;
 
 @Component
 public class UserKycPersistenceAdapter implements LoadUserKycPort, SaveUserKycPort, DeleteKycPort {

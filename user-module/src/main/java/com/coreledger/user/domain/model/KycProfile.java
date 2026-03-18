@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import com.coreledger.shared.domain.UserId;
+
 /**
  * Aggregate root representing a user's KYC profile.
  * Owns the documents submitted and verification status.

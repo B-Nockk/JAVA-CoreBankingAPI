@@ -3,9 +3,9 @@ package com.coreledger.user.application.port.in;
 
 import java.util.Optional;
 
+import com.coreledger.shared.domain.UserId;
 import com.coreledger.user.domain.model.KycDocumentBinary;
 import com.coreledger.user.domain.model.KycDocumentId;
-import com.coreledger.user.domain.model.UserId;
 
 public interface LoadKycDocumentUseCase {
 

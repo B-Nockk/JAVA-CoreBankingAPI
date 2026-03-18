@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.coreledger.shared.DomainEventPublisher;
 import com.coreledger.shared.domain.DomainEvent;
+import com.coreledger.shared.domain.UserId;
 import com.coreledger.user.application.port.in.AddKycDocumentUseCase;
 import com.coreledger.user.application.port.in.DeleteKycDocumentUseCase;
 import com.coreledger.user.application.port.in.DeleteKycProfileUseCase;
@@ -37,7 +38,6 @@ import com.coreledger.user.domain.model.KycProfileId;
 import com.coreledger.user.domain.model.KycSnapshot;
 import com.coreledger.user.domain.model.KycTier;
 import com.coreledger.user.domain.model.User;
-import com.coreledger.user.domain.model.UserId;
 
 /**
  * Application service for KYC (Know Your Customer) operations within the user

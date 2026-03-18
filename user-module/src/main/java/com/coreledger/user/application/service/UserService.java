@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.coreledger.shared.DomainEventPublisher;
 import com.coreledger.shared.domain.DomainEvent;
 import com.coreledger.shared.domain.EmailAddress;
+import com.coreledger.shared.domain.UserId;
 import com.coreledger.user.application.port.in.CreateUserUseCase;
 import com.coreledger.user.application.port.in.DeactivateUserUseCase;
 import com.coreledger.user.application.port.in.FlagUserUseCase;
@@ -24,7 +25,6 @@ import com.coreledger.user.application.port.out.LoadUserPort;
 import com.coreledger.user.application.port.out.SaveUserPort;
 import com.coreledger.user.domain.exceptions.UserNotFoundException;
 import com.coreledger.user.domain.model.User;
-import com.coreledger.user.domain.model.UserId;
 
 /**
  * Application service for user management within the user bounded context

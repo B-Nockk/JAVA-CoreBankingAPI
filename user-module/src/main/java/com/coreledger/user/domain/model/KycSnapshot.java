@@ -3,6 +3,8 @@ package com.coreledger.user.domain.model;
 
 import java.util.List;
 
+import com.coreledger.shared.domain.UserId;
+
 /**
  * Immutable value object representing a snapshot of a user's KYC profile.
  * This is a read-only projection of the aggregate state,

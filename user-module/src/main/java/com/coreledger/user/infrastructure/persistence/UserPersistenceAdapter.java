@@ -10,10 +10,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import com.coreledger.shared.domain.EmailAddress;
+import com.coreledger.shared.domain.UserId;
 import com.coreledger.user.application.port.out.LoadUserPort;
 import com.coreledger.user.application.port.out.SaveUserPort;
 import com.coreledger.user.domain.model.User;
-import com.coreledger.user.domain.model.UserId;
 
 @Component
 public class UserPersistenceAdapter implements LoadUserPort, SaveUserPort {

@@ -1,9 +1,9 @@
 // user-module/src/main/java/com/coreledger/user/application/port/in/rj.java
 package com.coreledger.user.application.port.in;
 
+import com.coreledger.shared.domain.UserId;
 import com.coreledger.user.domain.model.KycDocumentId;
 import com.coreledger.user.domain.model.KycTier;
-import com.coreledger.user.domain.model.UserId;
 
 public interface RejectKycDocumentUseCase {
 

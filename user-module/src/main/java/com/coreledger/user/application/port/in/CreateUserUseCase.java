@@ -3,7 +3,7 @@ package com.coreledger.user.application.port.in;
 
 import java.time.LocalDate;
 
-import com.coreledger.user.domain.model.UserId;
+import com.coreledger.shared.domain.UserId;
 import com.coreledger.user.domain.model.UserRole;
 
 public interface CreateUserUseCase {

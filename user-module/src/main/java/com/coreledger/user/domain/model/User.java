@@ -7,6 +7,7 @@ import java.util.Objects;
 
 import com.coreledger.shared.domain.DomainEvent;
 import com.coreledger.shared.domain.EmailAddress;
+import com.coreledger.shared.domain.UserId;
 import com.coreledger.user.domain.events.UserDeactivated;
 import com.coreledger.user.domain.events.UserFlagged;
 import com.coreledger.user.domain.events.UserReactivated;

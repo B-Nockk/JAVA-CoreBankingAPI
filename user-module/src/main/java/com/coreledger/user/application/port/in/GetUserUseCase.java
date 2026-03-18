@@ -8,10 +8,10 @@ import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 
 import com.coreledger.user.domain.model.User;
-import com.coreledger.user.domain.model.UserId;
 import com.coreledger.user.domain.model.UserRole;
 import com.coreledger.user.domain.model.UserStatus;
 import com.coreledger.shared.domain.EmailAddress;
+import com.coreledger.shared.domain.UserId;
 
 public interface GetUserUseCase {
 

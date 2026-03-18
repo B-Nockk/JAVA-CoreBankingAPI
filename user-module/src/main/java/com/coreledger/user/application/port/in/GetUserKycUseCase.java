@@ -3,13 +3,13 @@ package com.coreledger.user.application.port.in;
 
 import java.util.List;
 
+import com.coreledger.shared.domain.UserId;
 import com.coreledger.user.domain.model.KycDocument;
 import com.coreledger.user.domain.model.KycDocumentId;
 import com.coreledger.user.domain.model.KycDocumentStatus;
 import com.coreledger.user.domain.model.KycDocumentType;
 import com.coreledger.user.domain.model.KycSnapshot;
 import com.coreledger.user.domain.model.KycTier;
-import com.coreledger.user.domain.model.UserId;
 
 public interface GetUserKycUseCase {
 

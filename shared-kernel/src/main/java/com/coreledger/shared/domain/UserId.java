@@ -1,5 +1,5 @@
 // user-module/src/main/java/com/coreledger/user/domain/model/UserId.java
-package com.coreledger.user.domain.model;
+package com.coreledger.shared.domain;
 
 import java.util.Objects;
 import java.util.UUID;
