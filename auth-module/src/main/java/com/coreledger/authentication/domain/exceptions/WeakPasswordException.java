@@ -1,6 +1,8 @@
 // auth-module/src/main/java/com/coreledger/authentication/domain/exceptions/WeakPasswordException.java
 package com.coreledger.authentication.domain.exceptions;
 
+import com.coreledger.authentication.domain.model.AuthFailureReason;
+
 /**
  * Exception thrown when a signup attempt uses a weak password.
  *
@@ -14,6 +16,7 @@ package com.coreledger.authentication.domain.exceptions;
 public class WeakPasswordException extends AuthException {
     private static final long serialVersionUID = 1L;
     private static final String DEFAULT_MESSAGE = "Weak password";
+    private final AuthFailureReason reason = AuthFailureReason.WEAK_PASSWORD;
 
     public WeakPasswordException() {
         super(DEFAULT_MESSAGE);
@@ -32,6 +35,7 @@ public class WeakPasswordException extends AuthException {
                 userEmail != null ? userEmail : "[unknown]",
                 clientIp != null ? clientIp : "[unknown]",
                 getTimestamp(),
+                reason,
                 detailedReason != null ? detailedReason : "[unknown]");
     }
 }

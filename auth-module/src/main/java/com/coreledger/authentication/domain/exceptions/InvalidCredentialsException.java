@@ -1,6 +1,8 @@
 // auth-module/src/main/java/com/coreledger/authentication/domain/exceptions/InvalidCredentialsException.java
 package com.coreledger.authentication.domain.exceptions;
 
+import com.coreledger.authentication.domain.model.AuthFailureReason;
+
 import lombok.Getter;
 
 // TODO:: FIx Exceptions across the app
@@ -100,12 +102,15 @@ public class InvalidCredentialsException extends AuthException {
      */
     private static final String DEFAULT_MESSAGE = "Invalid credentials provided";
 
+    private final AuthFailureReason reason;
+
     /**
      * Creates a new exception with the default message.
      * Use this constructor for most cases where no additional tracking is needed.
      */
     public InvalidCredentialsException() {
         super(DEFAULT_MESSAGE);
+        this.reason = AuthFailureReason.INVALID_CREDENTIALS;
     }
 
     /**
@@ -119,6 +124,7 @@ public class InvalidCredentialsException extends AuthException {
      */
     public InvalidCredentialsException(String correlationId) {
         super(DEFAULT_MESSAGE, correlationId);
+        this.reason = AuthFailureReason.INVALID_CREDENTIALS;
     }
 
     /**
@@ -141,6 +147,7 @@ public class InvalidCredentialsException extends AuthException {
                 userEmail != null ? userEmail : "[unknown]",
                 clientIp != null ? clientIp : "[unknown]",
                 getTimestamp(),
-                detailedReason != null ? detailedReason : "[unknown]");
+                detailedReason != null ? detailedReason : "[unknown]",
+                reason);
     }
 }

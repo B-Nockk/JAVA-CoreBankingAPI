@@ -1,6 +1,8 @@
 // auth-module/src/main/java/com/coreledger/authentication/domain/exceptions/UserAlreadyExistsException.java
 package com.coreledger.authentication.domain.exceptions;
 
+import com.coreledger.authentication.domain.model.AuthFailureReason;
+
 /**
  * Exception thrown when a signup attempt is made with an existing user account.
  *
@@ -14,6 +16,7 @@ package com.coreledger.authentication.domain.exceptions;
 public class UserAlreadyExistsException extends AuthException {
     private static final long serialVersionUID = 1L;
     private static final String DEFAULT_MESSAGE = "User already exists";
+    private final AuthFailureReason reason = AuthFailureReason.USER_ALREADY_EXISTS;
 
     public UserAlreadyExistsException() {
         super(DEFAULT_MESSAGE);
@@ -32,6 +35,7 @@ public class UserAlreadyExistsException extends AuthException {
                 userEmail != null ? userEmail : "[unknown]",
                 clientIp != null ? clientIp : "[unknown]",
                 getTimestamp(),
+                reason,
                 detailedReason != null ? detailedReason : "[unknown]");
     }
 }

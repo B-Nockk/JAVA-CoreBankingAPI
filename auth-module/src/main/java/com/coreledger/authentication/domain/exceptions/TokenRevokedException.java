@@ -1,6 +1,8 @@
 // auth-module/src/main/java/com/coreledger/authentication/domain/exceptions/TokenRevokedException.java
 package com.coreledger.authentication.domain.exceptions;
 
+import com.coreledger.authentication.domain.model.AuthFailureReason;
+
 import lombok.Getter;
 
 /**
@@ -20,6 +22,7 @@ public class TokenRevokedException extends AuthException {
 
     private static final long serialVersionUID = 1L;
     private static final String DEFAULT_MESSAGE = "Token has been revoked";
+    private final AuthFailureReason reason = AuthFailureReason.TOKEN_REVOKED;
 
     public TokenRevokedException() {
         super(DEFAULT_MESSAGE);
@@ -37,6 +40,7 @@ public class TokenRevokedException extends AuthException {
                 userEmail != null ? userEmail : "[unknown]",
                 clientIp != null ? clientIp : "[unknown]",
                 getTimestamp(),
+                reason,
                 detailedReason != null ? detailedReason : "[unknown]");
     }
 }

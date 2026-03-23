@@ -2,6 +2,8 @@
 package com.coreledger.authentication.domain.exceptions;
 
 import java.util.UUID;
+
+import com.coreledger.authentication.domain.model.AuthFailureReason;
 import com.coreledger.shared.domain.UserId;
 import lombok.Getter;
 
@@ -27,6 +29,7 @@ public class TokenReuseDetectedException extends AuthException {
 
     private final UUID tokenId;
     private final UserId userId;
+    private final AuthFailureReason reason = AuthFailureReason.TOKEN_REUSE_DETECTED;
 
     public TokenReuseDetectedException(UUID tokenId, UserId userId) {
         super("Security Alert: Token reuse detected");
@@ -54,6 +57,7 @@ public class TokenReuseDetectedException extends AuthException {
                 clientIp != null ? clientIp : "[unknown]",
                 tokenId != null ? tokenId : "[unknown]",
                 getTimestamp(),
+                reason,
                 detailedReason != null ? detailedReason : "[unknown]");
     }
 }

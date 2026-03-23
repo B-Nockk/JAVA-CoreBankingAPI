@@ -13,5 +13,6 @@ public enum AuthFailureReason {
     MFA_FAILED,
     UNSUPPORTED_AUTH_METHOD,
     WEAK_PASSWORD,
-    USER_NOT_FOUND
+    USER_NOT_FOUND,
+    USER_ALREADY_EXISTS
 }

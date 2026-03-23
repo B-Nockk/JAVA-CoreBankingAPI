@@ -1,6 +1,8 @@
 // auth-module/src/main/java/com/coreledger/authentication/domain/exceptions/MfaRequiredException.java
 package com.coreledger.authentication.domain.exceptions;
 
+import com.coreledger.authentication.domain.model.AuthFailureReason;
+
 /**
  * Exception thrown when multi-factor authentication is required but not
  * provided.
@@ -8,13 +10,20 @@ package com.coreledger.authentication.domain.exceptions;
 public class MfaRequiredException extends AuthException {
     private static final long serialVersionUID = 1L;
     private static final String DEFAULT_MESSAGE = "MFA required";
+    private final AuthFailureReason reason;
+
+    /**
+     * Default constructor with generic message.
+     */
 
     public MfaRequiredException() {
         super(DEFAULT_MESSAGE);
+        this.reason = AuthFailureReason.MFA_REQUIRED;
     }
 
     public MfaRequiredException(String correlationId) {
         super(DEFAULT_MESSAGE, correlationId);
+        this.reason = AuthFailureReason.MFA_REQUIRED;
     }
 
     @Override
@@ -26,6 +35,7 @@ public class MfaRequiredException extends AuthException {
                 userEmail != null ? userEmail : "[unknown]",
                 clientIp != null ? clientIp : "[unknown]",
                 getTimestamp(),
+                reason,
                 detailedReason != null ? detailedReason : "[unknown]");
     }
 }

@@ -1,6 +1,8 @@
 // auth-module/src/main/java/com/coreledger/authentication/domain/exceptions/InvalidSignatureException.java
 package com.coreledger.authentication.domain.exceptions;
 
+import com.coreledger.authentication.domain.model.AuthFailureReason;
+
 import lombok.Getter;
 
 /**
@@ -20,13 +22,16 @@ public class InvalidSignatureException extends AuthException {
 
     private static final long serialVersionUID = 1L;
     private static final String DEFAULT_MESSAGE = "Invalid signature";
+    private final AuthFailureReason reason;
 
     public InvalidSignatureException() {
         super(DEFAULT_MESSAGE);
+        this.reason = AuthFailureReason.INVALID_SIGNATURE;
     }
 
     public InvalidSignatureException(String correlationId) {
         super(DEFAULT_MESSAGE, correlationId);
+        this.reason = AuthFailureReason.INVALID_SIGNATURE;
     }
 
     @Override
@@ -49,6 +54,7 @@ public class InvalidSignatureException extends AuthException {
                 algorithm != null ? algorithm : "[unknown]",
                 clientIp != null ? clientIp : "[unknown]",
                 getTimestamp(),
+                reason,
                 detailedReason != null ? detailedReason : "[unknown]");
     }
 }

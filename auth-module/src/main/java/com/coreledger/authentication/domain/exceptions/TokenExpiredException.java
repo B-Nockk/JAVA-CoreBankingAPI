@@ -3,6 +3,8 @@ package com.coreledger.authentication.domain.exceptions;
 
 import java.time.Instant;
 
+import com.coreledger.authentication.domain.model.AuthFailureReason;
+
 import lombok.Getter;
 
 /**
@@ -68,6 +70,7 @@ public class TokenExpiredException extends AuthException {
      * <b>Example:</b> 2024-01-15T10:30:00Z
      */
     private final Instant expiredAt;
+    private final AuthFailureReason reason = AuthFailureReason.TOKEN_EXPIRED;
 
     /**
      * Creates a new exception with the default message.
@@ -111,6 +114,7 @@ public class TokenExpiredException extends AuthException {
                 clientIp != null ? clientIp : "[unknown]",
                 expiredAt,
                 getTimestamp(),
+                reason,
                 detailedReason != null ? detailedReason : "[unknown]");
     }
 

@@ -1,6 +1,8 @@
 // auth-module/src/main/java/com/coreledger/authentication/domain/exceptions/ReplayAttackException.java
 package com.coreledger.authentication.domain.exceptions;
 
+import com.coreledger.authentication.domain.model.AuthFailureReason;
+
 import lombok.Getter;
 
 /**
@@ -23,6 +25,7 @@ public class ReplayAttackException extends AuthException {
 
     private final String nonce;
     private final String requestTimestamp;
+    private final AuthFailureReason reason = AuthFailureReason.REPLAY_ATTACK;
 
     public ReplayAttackException(String nonce, String requestTimestamp) {
         super(DEFAULT_MESSAGE);
@@ -47,6 +50,7 @@ public class ReplayAttackException extends AuthException {
                 nonce != null ? nonce : "[unknown]",
                 requestTimestamp != null ? requestTimestamp : "[unknown]",
                 getTimestamp(),
+                reason,
                 detailedReason != null ? detailedReason : "[unknown]");
     }
 }
