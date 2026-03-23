@@ -7,6 +7,12 @@ import java.util.UUID;
 import lombok.Getter;
 
 /**
+ * TODO::
+ * look into logging frameworks (SLF4J, Logback, etc.) with MDC (Mapped Diagnostic Context)
+ * or structured logging to automatically attach service name, environment, request ID, etc.
+ */
+
+/**
  * Base exception for all authentication-related failures.
  *
  * <p>
@@ -21,7 +27,47 @@ import lombok.Getter;
  * <li>{@link #timestamp} - When the exception was created</li>
  * </ul>
  *
- * @author Nockk
+ *
+ * <p>
+ * <b>Contract:</b>
+ * <ul>
+ * <li>All subclasses must implement {@link #createLogMessage} to provide
+ * structured, detailed logging context.</li>
+ * </ul>
+ *
+ * <p>
+ * <b>Usage Examples:</b>
+ * <ul>
+ * <li>When <code>userId</code> and <code>userEmail</code> are known:
+ *
+ * <pre>
+ * throw new InvalidCredentialsException()
+ *         .createLogMessage("12345", "user@example.com", "192.168.1.10", "Password mismatch");
+ * </pre>
+ *
+ * </li>
+ *
+ * <li>When <code>userId</code> is unknown but email is attempted:
+ *
+ * <pre>
+ * throw new InvalidCredentialsException()
+ *         .createLogMessage(null, "user@example.com", "192.168.1.10", "No matching account");
+ * </pre>
+ *
+ * </li>
+ *
+ * <li>When both <code>userId</code> and <code>userEmail</code> are unavailable
+ * (e.g., invalid token before parsing):
+ *
+ * <pre>
+ * throw new InvalidSignatureException()
+ *         .createLogMessage(null, null, "192.168.1.10", "Signature mismatch");
+ * </pre>
+ *
+ * </li>
+ *
+ * </ul>
+ * 
  * @since 1.0
  */
 @Getter
@@ -65,4 +111,19 @@ public abstract class AuthException extends RuntimeException {
     protected AuthException(String message) {
         this(message, null);
     }
+
+    /**
+     * Contract for subclasses to provide structured log messages.
+     *
+     * <p>
+     * This ensures every exception type has a consistent logging format
+     * while allowing each subclass to add its own contextual fields.
+     *
+     * @param userId         the user identifier (may be null)
+     * @param userEmail      the user's email address (may be null)
+     * @param clientIp       the client's IP address (may be null)
+     * @param detailedReason the specific reason for failure (may be null)
+     * @return formatted log message with exception-specific context
+     */
+    public abstract String createLogMessage(String userId, String userEmail, String clientIp, String detailedReason);
 }

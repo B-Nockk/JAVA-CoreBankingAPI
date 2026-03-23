@@ -1,8 +1,7 @@
 // auth-module/src/main/java/com/coreledger/authentication/domain/exceptions/InvalidCredentialsException.java
 package com.coreledger.authentication.domain.exceptions;
 
-import java.time.Instant;
-import java.util.UUID;
+import lombok.Getter;
 
 // TODO:: FIx Exceptions across the app
 /**
@@ -88,7 +87,8 @@ import java.util.UUID;
  * @see UnauthorizedException
  * @since 1.0
  */
-public class InvalidCredentialsException extends RuntimeException {
+@Getter
+public class InvalidCredentialsException extends AuthException {
 
     /**
      * Default serial version UID for compatibility.
@@ -101,21 +101,11 @@ public class InvalidCredentialsException extends RuntimeException {
     private static final String DEFAULT_MESSAGE = "Invalid credentials provided";
 
     /**
-     * Optional correlation ID for tracing this failure across logs.
-     */
-    private final String correlationId;
-
-    /**
-     * Timestamp when this exception was created.
-     */
-    private final Instant timestamp;
-
-    /**
      * Creates a new exception with the default message.
      * Use this constructor for most cases where no additional tracking is needed.
      */
     public InvalidCredentialsException() {
-        this(null);
+        super(DEFAULT_MESSAGE);
     }
 
     /**
@@ -128,27 +118,7 @@ public class InvalidCredentialsException extends RuntimeException {
      * @param correlationId unique identifier to trace this failure in logs
      */
     public InvalidCredentialsException(String correlationId) {
-        super(DEFAULT_MESSAGE);
-        this.correlationId = correlationId != null ? correlationId : UUID.randomUUID().toString();
-        this.timestamp = Instant.now();
-    }
-
-    /**
-     * Gets the correlation ID for tracing this exception.
-     *
-     * @return the unique correlation identifier
-     */
-    public String getCorrelationId() {
-        return correlationId;
-    }
-
-    /**
-     * Gets the timestamp when this exception was created.
-     *
-     * @return the timestamp of exception creation
-     */
-    public Instant getTimestamp() {
-        return timestamp;
+        super(DEFAULT_MESSAGE, correlationId);
     }
 
     /**
@@ -162,13 +132,15 @@ public class InvalidCredentialsException extends RuntimeException {
      * @param detailedReason the specific reason for failure
      * @return a formatted log message suitable for security auditing
      */
-    public String createLogMessage(String username, String clientIp, String detailedReason) {
+    @Override
+    public String createLogMessage(String username, String clientIp, String userEmail, String detailedReason) {
         return String.format(
                 "Authentication failed - correlationId: %s, username: %s, ip: %s, timestamp: %s, reason: %s",
-                correlationId,
+                getCorrelationId(),
                 username != null ? username : "[unknown]",
+                userEmail != null ? userEmail : "[unknown]",
                 clientIp != null ? clientIp : "[unknown]",
-                timestamp,
+                getTimestamp(),
                 detailedReason != null ? detailedReason : "[unknown]");
     }
 }
