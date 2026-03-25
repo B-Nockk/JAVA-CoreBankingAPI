@@ -9,16 +9,19 @@ import lombok.Getter;
 public class TokenPair {
     private final AccessToken accessToken;
     private final RefreshToken refreshToken;
+    private final String rawRefreshToken;
 
     private TokenPair(
             AccessToken accessToken,
-            RefreshToken refreshToken) {
+            RefreshToken refreshToken,
+            String rawRefreshToken) {
         this.accessToken = Objects.requireNonNull(accessToken, "accessToken must not be null");
         this.refreshToken = Objects.requireNonNull(refreshToken, "refreshToken must not be null");
+        this.rawRefreshToken = rawRefreshToken;
     }
 
-    public static TokenPair create(AccessToken accessToken, RefreshToken refreshToken) {
-        return new TokenPair(accessToken, refreshToken);
+    public static TokenPair create(AccessToken accessToken, RefreshToken refreshToken, String rawRefreshToken) {
+        return new TokenPair(accessToken, refreshToken, rawRefreshToken);
     }
 
     // ======================================================================

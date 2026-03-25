@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 
+import org.springframework.security.crypto.bcrypt.BCrypt;
+
 import com.coreledger.shared.domain.EmailAddress;
 import com.coreledger.shared.domain.UserId;
 
@@ -332,6 +334,13 @@ public class AuthUser {
      */
     public boolean hasRole(String role) {
         return roles.contains(role);
+    }
+
+    public boolean verifyPassword(String rawPassword) {
+        if (authMethod != AuthMethod.PASSWORD || passwordHash.isEmpty()) {
+            return false;
+        }
+        return BCrypt.checkpw(rawPassword, passwordHash.get());
     }
 
     // =========================================================================
