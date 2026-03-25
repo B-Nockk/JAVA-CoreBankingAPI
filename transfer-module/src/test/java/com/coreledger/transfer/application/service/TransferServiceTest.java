@@ -21,7 +21,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import com.coreledger.shared.domain.Currency;
 import com.coreledger.shared.domain.Money;
@@ -58,7 +57,10 @@ class TransferServiceTest {
     @Mock
     private AccountVerificationPort accountVerificationPort;
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private com.coreledger.shared.DomainEventPublisher eventPublisher;
+
+    @Mock
+    private com.coreledger.shared.kafka.EventDeserializer eventDeserializer;
 
     @InjectMocks
     private TransferService transferService;
@@ -141,7 +143,9 @@ class TransferServiceTest {
 
             transferService.execute(validCommand());
 
-            verify(eventPublisher, times(1)).publishEvent(any(Object.class));
+            // verify(eventPublisher, times(1)).publishEvent(any(Object.class));
+            verify(eventPublisher, times(1)).publishTransferEvent(any());
+
         }
 
         @Test
